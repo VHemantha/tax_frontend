@@ -1,0 +1,128 @@
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { useAuth } from '../../contexts/AuthContext'
+import { Eye, EyeOff, Shield, Lock, Mail, AlertCircle } from 'lucide-react'
+import toast from 'react-hot-toast'
+import clsx from 'clsx'
+
+export default function Login() {
+  const { login } = useAuth()
+  const [showPass, setShowPass] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  const { register, handleSubmit, formState: { errors } } = useForm()
+
+  async function onSubmit({ email, password }) {
+    setLoading(true)
+    try {
+      await login(email, password)
+    } catch (err) {
+      const msg = err.response?.data?.detail || 'Invalid email or password.'
+      toast.error(msg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-brand-black flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-brand-yellow/5 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-brand-red/5 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-yellow/3 rounded-full blur-3xl" />
+      </div>
+
+      <div className="w-full max-w-md relative z-10 animate-slide-up">
+        {/* Card */}
+        <div className="bg-brand-black-light border border-brand-gray-border rounded-2xl shadow-card overflow-hidden">
+          {/* Header banner */}
+          <div className="bg-gradient-to-r from-brand-black to-brand-black-mid px-8 py-8 text-center border-b border-brand-gray-border">
+            <div className="w-16 h-16 bg-brand-yellow rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-glow-yellow">
+              <Shield size={28} className="text-brand-black" />
+            </div>
+            <h1 className="text-2xl font-bold text-white">Tax Automation Portal</h1>
+            <p className="text-brand-gray text-sm mt-1">Y/A 2025/2026 · Secure Client Portal</p>
+          </div>
+
+          {/* Form */}
+          <div className="px-8 py-8">
+            <h2 className="text-lg font-semibold text-white mb-6">Sign in to your account</h2>
+
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+              {/* Email */}
+              <div>
+                <label className="input-label">Email Address</label>
+                <div className="relative">
+                  <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-gray" />
+                  <input
+                    {...register('email', {
+                      required: 'Email is required',
+                      pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email address' }
+                    })}
+                    type="email"
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    className={clsx('input-field pl-10', errors.email && 'border-brand-red focus:border-brand-red focus:ring-brand-red')}
+                  />
+                </div>
+                {errors.email && (
+                  <p className="text-xs text-brand-red mt-1 flex items-center gap-1">
+                    <AlertCircle size={11} />{errors.email.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="input-label">Password</label>
+                <div className="relative">
+                  <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-gray" />
+                  <input
+                    {...register('password', { required: 'Password is required' })}
+                    type={showPass ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    className={clsx('input-field pl-10 pr-10', errors.password && 'border-brand-red focus:border-brand-red focus:ring-brand-red')}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(v => !v)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-brand-gray hover:text-white transition-colors"
+                  >
+                    {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="text-xs text-brand-red mt-1 flex items-center gap-1">
+                    <AlertCircle size={11} />{errors.password.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary w-full justify-center py-3 text-base mt-2"
+              >
+                {loading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-brand-black border-t-transparent rounded-full animate-spin" />
+                    Signing in...
+                  </>
+                ) : 'Sign In'}
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <p className="text-center text-xs text-brand-gray mt-6">
+          Secured portal for authorized users only. <br />
+          Contact your tax consultant for access.
+        </p>
+      </div>
+    </div>
+  )
+}

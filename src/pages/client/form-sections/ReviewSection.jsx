@@ -1,0 +1,196 @@
+import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
+import api from '../../../services/api'
+import { formatCurrency, formatDate } from '../../../utils/format'
+import StatusBadge from '../../../components/common/StatusBadge'
+import { ChevronLeft, Send, FileText, CheckCircle, AlertTriangle } from 'lucide-react'
+import toast from 'react-hot-toast'
+
+export default function ReviewSection({ submissionId, submission, documents, onPrev, isReadOnly }) {
+  const navigate = useNavigate()
+  const qc = useQueryClient()
+  const [confirmed, setConfirmed] = useState(false)
+
+  const submitMutation = useMutation({
+    mutationFn: () => api.post(`/tax/submissions/${submissionId}/submit/`),
+    onSuccess: () => {
+      toast.success('Form submitted successfully! Your consultant has been notified.')
+      qc.invalidateQueries(['my-submissions'])
+      qc.invalidateQueries(['submission', submissionId])
+      navigate('/client/dashboard')
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Submission failed'),
+  })
+
+  const hasDeclarant = !!submission?.declarant_details
+
+  const sectionDocs = (section) => documents.filter(d => d.section === section)
+
+  function SummaryRow({ label, value, highlight }) {
+    return (
+      <div className={`flex justify-between items-center py-2.5 border-b border-brand-gray-border last:border-0 ${highlight ? 'bg-brand-yellow/5 px-3 rounded-lg -mx-3' : ''}`}>
+        <span className={`text-sm ${highlight ? 'font-semibold text-white' : 'text-brand-gray'}`}>{label}</span>
+        <span className={`font-mono text-sm ${highlight ? 'font-bold text-brand-yellow text-base' : 'text-white'}`}>{value}</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Status */}
+      <div className="card flex items-center justify-between">
+        <div>
+          <p className="text-sm text-brand-gray">Submission Status</p>
+          <div className="mt-1"><StatusBadge status={submission?.status} /></div>
+        </div>
+        <div className="text-right">
+          <p className="text-sm text-brand-gray">Tax Year</p>
+          <p className="text-white font-semibold">{submission?.tax_year_label}</p>
+        </div>
+      </div>
+
+      {/* Income Summary */}
+      <div className="card">
+        <h3 className="section-header"><FileText size={16} className="text-brand-yellow" />Income Summary</h3>
+        <div className="space-y-0">
+          {submission?.local_employment?.amount > 0 && (
+            <SummaryRow label="Local Employment Income" value={formatCurrency(submission.local_employment?.amount)} />
+          )}
+          {(submission?.foreign_income?.employment_service_fee > 0 || submission?.foreign_income?.other_foreign_income > 0) && (
+            <SummaryRow label="Foreign Income" value={formatCurrency(
+              (parseFloat(submission.foreign_income?.employment_service_fee || 0) +
+               parseFloat(submission.foreign_income?.other_foreign_income || 0)).toFixed(2)
+            )} />
+          )}
+          {submission?.terminal_benefit?.amount > 0 && (
+            <SummaryRow label="Terminal Benefit" value={formatCurrency(submission.terminal_benefit?.amount)} />
+          )}
+          {submission?.rent_income?.gross_amount > 0 && (
+            <SummaryRow label="Rent Income (Gross)" value={formatCurrency(submission.rent_income?.gross_amount)} />
+          )}
+          {submission?.interest_income?.amount > 0 && (
+            <SummaryRow label="Interest Income" value={formatCurrency(submission.interest_income?.amount)} />
+          )}
+          {submission?.dividend_income?.amount > 0 && (
+            <SummaryRow label="Dividend Income" value={formatCurrency(submission.dividend_income?.amount)} />
+          )}
+          {submission?.sole_proprietorship?.amount > 0 && (
+            <SummaryRow label="Sole Proprietorship/Partnership Income" value={formatCurrency(submission.sole_proprietorship?.amount)} />
+          )}
+          {submission?.other_income?.amount > 0 && (
+            <SummaryRow label="Other Income" value={formatCurrency(submission.other_income?.amount)} />
+          )}
+          <SummaryRow label="TOTAL ASSESSABLE INCOME" value={formatCurrency(submission?.total_assessable_income)} highlight />
+        </div>
+      </div>
+
+      {/* Documents Summary */}
+      <div className="card">
+        <h3 className="section-header"><FileText size={16} className="text-brand-yellow" />Uploaded Documents ({documents.length})</h3>
+        {documents.length === 0 ? (
+          <div className="text-center py-4 text-brand-gray text-sm">No documents uploaded yet</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {documents.map(doc => (
+              <div key={doc.id} className="flex items-center gap-2 bg-brand-black-soft rounded-lg px-3 py-2">
+                <FileText size={13} className="text-brand-yellow flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-white truncate">{doc.original_filename}</p>
+                  <p className="text-xs text-brand-gray">{doc.document_type_display}</p>
+                </div>
+                {doc.is_verified && <CheckCircle size={12} className="text-brand-success ml-auto flex-shrink-0" />}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Declarant */}
+      {submission?.declarant_details && (
+        <div className="card">
+          <h3 className="section-header">Declarant Details</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {[
+              ['Full Name', submission.declarant_details.full_name],
+              ['NIC/Passport', submission.declarant_details.nic_passport],
+              ['TIN', submission.declarant_details.tin || '—'],
+              ['PIN', submission.declarant_details.pin || '—'],
+              ['Mobile', submission.declarant_details.mobile || '—'],
+              ['Email', submission.declarant_details.email],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <p className="text-xs text-brand-gray">{label}</p>
+                <p className="text-sm text-white font-medium">{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Validation warnings */}
+      {!hasDeclarant && (
+        <div className="bg-brand-red/10 border border-brand-red/30 rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle size={16} className="text-brand-red flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-brand-gray">
+            <span className="text-white font-medium">Missing: </span>
+            Declarant details are required before submitting. Please complete Step 4.
+          </p>
+        </div>
+      )}
+
+      {/* Submit */}
+      {!isReadOnly && (
+        <div className="form-section">
+          <h3 className="section-header text-white">Final Submission</h3>
+          <p className="text-sm text-brand-gray mb-4">
+            Before submitting, please confirm that all information provided is accurate and complete.
+            Once submitted, you cannot edit the form unless your consultant requests additional information.
+          </p>
+
+          <label className="flex items-start gap-3 cursor-pointer mb-6">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(e) => setConfirmed(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-brand-yellow"
+            />
+            <span className="text-sm text-brand-gray">
+              I confirm that all information provided in this tax return is true, accurate, and complete to the best of my knowledge.
+              I understand that false declarations may result in legal penalties.
+            </span>
+          </label>
+
+          <div className="flex justify-between">
+            <button type="button" onClick={onPrev} className="btn-secondary">
+              <ChevronLeft size={15} /> Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => submitMutation.mutate()}
+              disabled={!confirmed || !hasDeclarant || submitMutation.isPending}
+              className="btn-primary"
+            >
+              {submitMutation.isPending ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-brand-black border-t-transparent rounded-full animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <><Send size={15} /> Submit Tax Form</>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isReadOnly && (
+        <div className="flex justify-between">
+          <button type="button" onClick={onPrev} className="btn-secondary">
+            <ChevronLeft size={15} /> Previous
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
