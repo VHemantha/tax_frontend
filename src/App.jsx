@@ -19,6 +19,8 @@ import RegisterClient from './pages/consultant/RegisterClient'
 import ClientDetail from './pages/consultant/ClientDetail'
 import TaxCalculation from './pages/consultant/TaxCalculation'
 import ArchivePage from './pages/consultant/ArchivePage'
+import Portfolio from './pages/consultant/Portfolio'
+import StatusDrillDown from './pages/consultant/StatusDrillDown'
 
 export default function App() {
   return (
@@ -47,6 +49,8 @@ export default function App() {
               <Route path="/consultant/clients/:clientId" element={<ClientDetail />} />
               <Route path="/consultant/submissions/:submissionId/calculate" element={<TaxCalculation />} />
               <Route path="/consultant/archive" element={<ArchivePage />} />
+              <Route path="/consultant/portfolio" element={<Portfolio />} />
+              <Route path="/consultant/status/:statusKey" element={<StatusDrillDown />} />
             </Route>
           </Route>
 

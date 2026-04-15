@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
-import { formatCurrency, formatDate } from '../../utils/format'
+import { formatCurrency, formatCurrencyInt, formatDate, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../../utils/format'
 import StatusBadge from '../../components/common/StatusBadge'
 import PageHeader from '../../components/common/PageHeader'
 import {
@@ -362,6 +362,14 @@ export default function TaxCalculation() {
     enabled: !!submissionId,
   })
 
+  // Live calculation (Change 5) — shows real-time TAI even before confirming
+  const { data: liveCalc } = useQuery({
+    queryKey: ['live-calc', submissionId],
+    queryFn: () => api.get(`/tax/submissions/${submissionId}/live-calculate/`).then(r => r.data),
+    enabled: !!submissionId,
+    staleTime: 30000,
+  })
+
   const confirmCalc = useMutation({
     mutationFn: () => api.post(`/tax/submissions/${submissionId}/confirm-calculation/`),
     onSuccess: () => {
@@ -454,7 +462,9 @@ export default function TaxCalculation() {
   const s = submission
   const canEdit = s?.status !== 'archived'
   const canConfirm = ['submitted', 'under_review', 'info_requested'].includes(s?.status)
-  const val = k => pendingUpdates[k] ?? s?.[k]
+  // val: pendingUpdates > stored submission > live calculation (Change 5 — TAI fix)
+  const val = k => pendingUpdates[k] ?? s?.[k] ?? liveCalc?.[k]
+  const liveVal = k => liveCalc?.[k] ?? s?.[k]
 
   // Doc grouping
   const docsBySection = documents.reduce((acc, doc) => {
@@ -1008,17 +1018,70 @@ export default function TaxCalculation() {
               </div>
               <p className="text-xs text-brand-gray mb-3 flex items-center gap-1"><Pencil size={10} /> Click pencil to edit</p>
 
-              <EditableAmount label="Assessable Income" value={val('total_assessable_income')} fieldKey="total_assessable_income" onSave={handleFieldUpdate} />
+              {/* Live TAI badge — shows real value even before confirming (Change 5) */}
+              {liveCalc && parseFloat(liveCalc.total_assessable_income) !== parseFloat(s?.total_assessable_income || 0) && (
+                <div className="mb-3 px-3 py-2 bg-brand-info/10 border border-brand-info/20 rounded-lg">
+                  <p className="text-xs text-brand-info">Live calculation available. Stored value differs from current income data.</p>
+                  <p className="text-xs text-white font-mono mt-1">Live TAI: {formatCurrency(liveCalc.total_assessable_income)}</p>
+                </div>
+              )}
+
+              <EditableAmount label="Assessable Income" value={liveVal('total_assessable_income')} fieldKey="total_assessable_income" onSave={handleFieldUpdate} />
+              {/* Exempt dividend income (Change 16) */}
+              {parseFloat(liveVal('exempt_dividend_income') || 0) > 0 && (
+                <div className="flex justify-between items-center py-1 pl-4">
+                  <span className="text-xs text-brand-gray italic">Exempt Dividend Income (15% WHT)</span>
+                  <span className="text-xs text-brand-success font-mono">{formatCurrency(liveVal('exempt_dividend_income'))}</span>
+                </div>
+              )}
               <EditableAmount label="Less: Qualifying Pmts" value={val('total_qualifying_payments')} fieldKey="total_qualifying_payments" onSave={handleFieldUpdate} indent />
               <EditableAmount label="Less: Personal Relief" value={val('personal_relief')} fieldKey="personal_relief" onSave={handleFieldUpdate} indent />
-              <EditableAmount label="Less: Rent Relief (25%)" value={val('rent_relief')} fieldKey="rent_relief" onSave={handleFieldUpdate} indent />
-              <EditableAmount label="Net Taxable Income" value={val('net_taxable_income')} fieldKey="net_taxable_income" onSave={handleFieldUpdate} highlight />
+              <EditableAmount label="Less: Rent Relief (25%)" value={liveVal('rent_relief')} fieldKey="rent_relief" onSave={handleFieldUpdate} indent />
+              {/* Change 19: renamed from Net Taxable Income → Taxable Income */}
+              <EditableAmount label="Taxable Income" value={liveVal('net_taxable_income')} fieldKey="net_taxable_income" onSave={handleFieldUpdate} highlight />
               <div className="h-px bg-brand-gray-border my-3" />
+
+              {/* Slab breakdown (Change 19) */}
+              {(liveCalc?.slab_breakdown || s?.slab_breakdown || []).length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs text-brand-gray uppercase tracking-wider mb-2">Tax Slab Breakdown</p>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-brand-gray-border">
+                        <th className="text-left pb-1 text-brand-gray font-medium">Slab</th>
+                        <th className="text-right pb-1 text-brand-gray font-medium">Tax (Rs.)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(liveCalc?.slab_breakdown || s?.slab_breakdown || []).map((row, i) => (
+                        <tr key={i} className="border-b border-brand-gray-border/50">
+                          <td className="py-1 text-brand-gray">{row.label}</td>
+                          <td className="py-1 text-right font-mono text-white">{formatCurrencyInt(row.tax)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
               <EditableAmount label="Gross Tax" value={val('gross_tax')} fieldKey="gross_tax" onSave={handleFieldUpdate} />
               <EditableAmount label="Less: Tax Credits" value={val('total_tax_credits')} fieldKey="total_tax_credits" onSave={handleFieldUpdate} indent />
               <div className="mt-4 bg-brand-yellow/10 border border-brand-yellow/30 rounded-xl p-4">
-                <p className="text-xs text-brand-gray uppercase tracking-wider mb-2">NET TAX PAYABLE</p>
+                <p className="text-xs text-brand-gray uppercase tracking-wider mb-2">BALANCE TAX PAYABLE</p>
                 <EditableAmount label="" value={val('net_tax_payable')} fieldKey="net_tax_payable" onSave={handleFieldUpdate} />
+              </div>
+
+              {/* Payment Status (Change 8) */}
+              <div className="mt-4 border border-brand-gray-border rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-brand-gray uppercase tracking-wider">Payment Status</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${PAYMENT_STATUS_COLORS[s?.payment_status || 'pending']}`}>
+                    {PAYMENT_STATUS_LABELS[s?.payment_status || 'pending']}
+                  </span>
+                </div>
+                {s?.payment_updated_at && (
+                  <p className="text-xs text-brand-gray">Updated: {formatDate(s.payment_updated_at)}</p>
+                )}
               </div>
             </div>
 

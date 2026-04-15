@@ -32,11 +32,12 @@ export default function ConsultantDashboard() {
     queryFn: () => api.get('/notifications/?unread=true').then(r => r.data),
   })
 
+  // Change 4: statCards now carry a statusKey so clicking drills down to a filtered list
   const statCards = [
-    { label: 'Total Clients', value: stats?.total_clients || 0, icon: Users, color: 'text-brand-yellow', bg: 'bg-brand-yellow/10' },
-    { label: 'Pending Review', value: stats?.pending_review || 0, icon: Clock, color: 'text-brand-yellow-muted', bg: 'bg-brand-yellow/10' },
-    { label: 'Awaiting Confirmation', value: stats?.awaiting_confirmation || 0, icon: Bell, color: 'text-orange-400', bg: 'bg-orange-400/10' },
-    { label: 'Archived', value: stats?.archived || 0, icon: CheckCircle, color: 'text-brand-success', bg: 'bg-brand-success/10' },
+    { label: 'Total Clients', value: stats?.total_clients || 0, icon: Users, color: 'text-brand-yellow', bg: 'bg-brand-yellow/10', statusKey: null },
+    { label: 'Pending Review', value: stats?.pending_review || 0, icon: Clock, color: 'text-brand-yellow-muted', bg: 'bg-brand-yellow/10', statusKey: 'submitted' },
+    { label: 'Awaiting Confirmation', value: stats?.awaiting_confirmation || 0, icon: Bell, color: 'text-orange-400', bg: 'bg-orange-400/10', statusKey: 'awaiting_confirmation' },
+    { label: 'Archived', value: stats?.archived || 0, icon: CheckCircle, color: 'text-brand-success', bg: 'bg-brand-success/10', statusKey: 'archived' },
   ]
 
   const chartData = [
@@ -57,9 +58,14 @@ export default function ConsultantDashboard() {
         title={`Good ${getGreeting()}, ${user?.full_name?.split(' ')[0] || 'Consultant'}`}
         subtitle="Tax Consultant Dashboard — Y/A 2025/2026"
         actions={
-          <button onClick={() => navigate('/consultant/clients/register')} className="btn-primary">
-            <UserPlus size={15} /> Register Client
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => navigate('/consultant/portfolio')} className="btn-ghost text-sm">
+              <BarChart3 size={15} /> Portfolio
+            </button>
+            <button onClick={() => navigate('/consultant/clients/register')} className="btn-primary">
+              <UserPlus size={15} /> Register Client
+            </button>
+          </div>
         }
       />
 
@@ -74,10 +80,14 @@ export default function ConsultantDashboard() {
         </div>
       )}
 
-      {/* Stat Cards */}
+      {/* Stat Cards — clickable for drill-down (Change 4) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {statCards.map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="card hover:border-brand-yellow/30 transition-colors">
+        {statCards.map(({ label, value, icon: Icon, color, bg, statusKey }) => (
+          <div
+            key={label}
+            className={`card transition-colors ${statusKey ? 'hover:border-brand-yellow/50 cursor-pointer active:scale-[0.98]' : 'hover:border-brand-yellow/30'}`}
+            onClick={() => statusKey && navigate(`/consultant/status/${statusKey}`)}
+          >
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs text-brand-gray uppercase tracking-wider mb-2">{label}</p>
@@ -87,6 +97,11 @@ export default function ConsultantDashboard() {
                 <Icon size={18} className={color} />
               </div>
             </div>
+            {statusKey && (
+              <p className="text-xs text-brand-gray mt-2 flex items-center gap-1">
+                <ArrowRight size={10} /> Click to view clients
+              </p>
+            )}
           </div>
         ))}
       </div>

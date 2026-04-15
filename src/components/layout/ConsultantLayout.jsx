@@ -4,15 +4,16 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, Users, UserPlus, LogOut, Menu,
-  ChevronRight, User, Shield, Calculator, Archive
+  ChevronRight, User, Shield, Calculator, Archive, BarChart3
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 import clsx from 'clsx'
 
 const NAV_ITEMS = [
-  { path: '/consultant/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { path: '/consultant/dashboard', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { path: '/consultant/clients', icon: Users, label: 'Clients', exact: true },
-  { path: '/consultant/clients/register', icon: UserPlus, label: 'Register Client' },
+  { path: '/consultant/clients/register', icon: UserPlus, label: 'Register Client', exact: true },
+  { path: '/consultant/portfolio', icon: BarChart3, label: 'Portfolio', exact: true },
   { path: '/consultant/archive', icon: Archive, label: 'Archive', exact: true },
 ]
 

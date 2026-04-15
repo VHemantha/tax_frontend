@@ -7,7 +7,7 @@ import StatusBadge from '../../components/common/StatusBadge'
 import PageHeader from '../../components/common/PageHeader'
 import {
   FileText, Plus, Clock, CheckCircle, AlertCircle, ArrowRight,
-  TrendingUp, Calendar, Bell, ChevronRight
+  TrendingUp, Calendar, Bell, ChevronRight, Lock, Unlock
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -39,6 +39,26 @@ export default function ClientDashboard() {
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to create submission'),
   })
+
+  // Previous year access requests (Change 13)
+  const { data: accessRequests = [] } = useQuery({
+    queryKey: ['access-requests'],
+    queryFn: () => api.get('/tax/access-requests/').then(r => r.data).catch(() => []),
+  })
+
+  const requestAccess = useMutation({
+    mutationFn: (taxYearId) => api.post('/tax/access-requests/', { tax_year: taxYearId }),
+    onSuccess: () => {
+      toast.success('Access request submitted. Awaiting admin approval.')
+      qc.invalidateQueries(['access-requests'])
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to submit request'),
+  })
+
+  const getAccessStatus = (yearId) => {
+    const req = accessRequests.find(r => r.tax_year === yearId)
+    return req?.status || null
+  }
 
   const activeYear = taxYears.find(y => y.is_active)
   const currentSubmission = submissions.find(s => s.tax_year === activeYear?.id)
@@ -232,6 +252,70 @@ export default function ClientDashboard() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Previous Year Access Requests (Change 13) */}
+      {taxYears.filter(y => !y.is_active).length > 0 && (
+        <div className="mt-6">
+          <h2 className="section-header mb-3"><Lock size={15} className="text-brand-gray" />Previous Assessment Years</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {taxYears.filter(y => !y.is_active).map(ty => {
+              const existing = submissions.find(s => s.tax_year === ty.id)
+              const accessStatus = getAccessStatus(ty.id)
+
+              return (
+                <div key={ty.id} className="card border border-brand-gray-border relative overflow-hidden">
+                  {!existing && !accessStatus && (
+                    <div className="absolute inset-0 bg-brand-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center z-10">
+                      <Lock size={20} className="text-brand-gray mb-2" />
+                      <p className="text-xs text-brand-gray text-center mb-3 px-4">You don't have access to this year's data</p>
+                      <button
+                        onClick={() => requestAccess.mutate(ty.id)}
+                        disabled={requestAccess.isLoading}
+                        className="btn-primary text-xs py-1.5 px-4"
+                      >
+                        Request Access
+                      </button>
+                    </div>
+                  )}
+                  {!existing && accessStatus === 'pending' && (
+                    <div className="absolute inset-0 bg-brand-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center z-10">
+                      <Clock size={20} className="text-brand-yellow mb-2" />
+                      <p className="text-xs text-brand-yellow font-semibold">Pending Approval</p>
+                      <p className="text-xs text-brand-gray mt-1 text-center px-4">Your access request is being reviewed</p>
+                    </div>
+                  )}
+                  {!existing && accessStatus === 'denied' && (
+                    <div className="absolute inset-0 bg-brand-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center z-10">
+                      <AlertCircle size={20} className="text-brand-red mb-2" />
+                      <p className="text-xs text-brand-red font-semibold">Access Denied</p>
+                      <button
+                        onClick={() => requestAccess.mutate(ty.id)}
+                        className="mt-2 btn-ghost text-xs py-1 px-3"
+                      >
+                        Request Again
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-white">{ty.label}</p>
+                    {existing ? <Unlock size={14} className="text-brand-success" /> : <Lock size={14} className="text-brand-gray" />}
+                  </div>
+                  {existing ? (
+                    <>
+                      <p className="text-xs text-brand-gray mb-1">Status: <span className="text-white">{STATUS_LABELS[existing.status] || existing.status}</span></p>
+                      {existing.net_tax_payable && (
+                        <p className="text-xs text-brand-gray">Tax Paid: <span className="font-mono text-brand-yellow">{formatCurrency(existing.net_tax_payable)}</span></p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-brand-gray">No submission for this year</p>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

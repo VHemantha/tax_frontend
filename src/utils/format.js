@@ -1,11 +1,33 @@
 /**
- * Format a number as Sri Lankan Rupees
+ * Format a number as Sri Lankan Rupees (2 decimal places).
  */
 export function formatCurrency(value) {
   if (value === null || value === undefined || value === '') return 'Rs. 0.00'
   const num = parseFloat(value)
   if (isNaN(num)) return 'Rs. 0.00'
   return `Rs. ${num.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+/**
+ * Format a number with comma-separated thousands, NO decimal places.
+ * Use this for all currency display fields (Change 3).
+ * e.g. formatNumber(200000.50) → "200,001"
+ */
+export function formatNumber(value) {
+  if (value === null || value === undefined || value === '') return '0'
+  const num = Math.round(parseFloat(value))
+  if (isNaN(num)) return '0'
+  return num.toLocaleString('en-LK')
+}
+
+/**
+ * Format a number as Rs. X,XXX (no decimals) — for compact display (Change 3).
+ */
+export function formatCurrencyInt(value) {
+  if (value === null || value === undefined || value === '') return 'Rs. 0'
+  const num = Math.round(parseFloat(value))
+  if (isNaN(num)) return 'Rs. 0'
+  return `Rs. ${num.toLocaleString('en-LK')}`
 }
 
 export function formatDate(dateStr) {
@@ -49,4 +71,16 @@ export const STATUS_COLORS = {
   under_review: 'bg-yellow-900/30 text-brand-yellow',
   calculation_done: 'bg-purple-900/30 text-purple-400',
   confirmed: 'bg-brand-success-pale text-brand-success',
+}
+
+export const PAYMENT_STATUS_COLORS = {
+  pending: 'bg-yellow-900/30 text-yellow-400',
+  paid: 'bg-brand-success-pale text-brand-success',
+  overdue: 'bg-brand-red-pale text-brand-red',
+}
+
+export const PAYMENT_STATUS_LABELS = {
+  pending: 'Pending',
+  paid: 'Paid',
+  overdue: 'Overdue',
 }
