@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import {
-  LayoutDashboard, LogOut, Menu, ChevronRight, User, Calculator, Banknote
+  LayoutDashboard, LogOut, Menu, ChevronRight, User, Banknote
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 import clsx from 'clsx'
@@ -30,13 +30,8 @@ export default function AccountsDeptLayout() {
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       )}>
         <div className="flex items-center gap-3 px-6 py-5 border-b border-brand-gray-border">
-          <div className="w-9 h-9 bg-brand-yellow rounded-lg flex items-center justify-center">
-            <Calculator size={18} className="text-brand-black" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-white">Tax Portal</p>
-            <p className="text-xs text-blue-400">Accounts Division</p>
-          </div>
+          <img src="/logo.png" alt="Tax Portal" className="h-9 w-auto object-contain" />
+          <p className="text-xs text-blue-400">Accounts Division</p>
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">

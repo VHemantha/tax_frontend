@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, Users, UserPlus, LogOut, Menu,
-  ChevronRight, User, ShieldCheck, Calculator
+  ChevronRight, User, ShieldCheck
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 import clsx from 'clsx'
@@ -34,13 +34,8 @@ export default function SuperAdminLayout() {
       )}>
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-brand-gray-border">
-          <div className="w-9 h-9 bg-brand-yellow rounded-lg flex items-center justify-center">
-            <Calculator size={18} className="text-brand-black" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-white">Tax Portal</p>
-            <p className="text-xs text-brand-yellow">Super Admin</p>
-          </div>
+          <img src="/logo.png" alt="Tax Portal" className="h-9 w-auto object-contain" />
+          <p className="text-xs text-brand-yellow">Super Admin</p>
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">

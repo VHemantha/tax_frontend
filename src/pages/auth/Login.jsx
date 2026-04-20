@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../../contexts/AuthContext'
-import { Eye, EyeOff, Shield, Lock, Mail, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, Lock, Mail, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
@@ -38,10 +38,7 @@ export default function Login() {
         <div className="bg-brand-black-light border border-brand-gray-border rounded-2xl shadow-card overflow-hidden">
           {/* Header banner */}
           <div className="bg-gradient-to-r from-brand-black to-brand-black-mid px-8 py-8 text-center border-b border-brand-gray-border">
-            <div className="w-16 h-16 bg-brand-yellow rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-glow-yellow">
-              <Shield size={28} className="text-brand-black" />
-            </div>
-            <h1 className="text-2xl font-bold text-white">Tax Automation Portal</h1>
+            <img src="/logo.png" alt="Tax Portal" className="h-16 w-auto object-contain mx-auto mb-4" />
             <p className="text-brand-gray text-sm mt-1">Y/A 2025/2026 · Secure Client Portal</p>
           </div>
 
