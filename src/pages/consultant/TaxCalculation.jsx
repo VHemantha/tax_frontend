@@ -383,9 +383,8 @@ export default function TaxCalculation() {
   const finalSubmit = useMutation({
     mutationFn: () => api.post(`/tax/submissions/${submissionId}/final-submit/`),
     onSuccess: () => {
-      toast.success('Final return submitted! Client has been notified.')
+      toast.success('Tax computation sent to client for review.')
       qc.invalidateQueries(['submission', submissionId])
-      navigate(-1)
     },
     onError: err => {
       const data = err.response?.data
@@ -395,6 +394,16 @@ export default function TaxCalculation() {
         toast.error(data?.error || 'Failed to submit')
       }
     },
+  })
+
+  const archiveSubmission = useMutation({
+    mutationFn: () => api.post(`/tax/submissions/${submissionId}/archive/`),
+    onSuccess: () => {
+      toast.success('Submission archived. Client has been notified.')
+      qc.invalidateQueries(['submission', submissionId])
+      navigate(-1)
+    },
+    onError: err => toast.error(err.response?.data?.error || 'Failed to archive'),
   })
 
   function handleFieldUpdate(field, value) {
@@ -481,6 +490,8 @@ export default function TaxCalculation() {
   const canConfirm = ['submitted', 'under_review', 'info_requested'].includes(s?.status)
   const canFinalSubmit = s?.status === 'confirmed'
   const paymentReceived = s?.payment_status === 'paid'
+  const canArchive = s?.status === 'client_confirmed'
+  const awaitingClientReview = s?.status === 'awaiting_client_review'
   // val: pendingUpdates > stored submission > live calculation (Change 5 — TAI fix)
   const val = k => pendingUpdates[k] ?? s?.[k] ?? liveCalc?.[k]
   const liveVal = k => liveCalc?.[k] ?? s?.[k]
@@ -539,8 +550,8 @@ export default function TaxCalculation() {
                   className="btn-primary bg-brand-success border-brand-success hover:opacity-90"
                 >
                   {finalSubmit.isPending
-                    ? <><span className="w-4 h-4 border-2 border-brand-black border-t-transparent rounded-full animate-spin" />Submitting...</>
-                    : <><CheckCircle size={14} /> Submit Final to Client</>
+                    ? <><span className="w-4 h-4 border-2 border-brand-black border-t-transparent rounded-full animate-spin" />Sending...</>
+                    : <><Send size={14} /> Send Tax Form to Client</>
                   }
                 </button>
               ) : (
@@ -548,9 +559,26 @@ export default function TaxCalculation() {
                   onClick={() => toast.error('Payment has not been received. Accounts Division must confirm payment before you can submit the final return.', { duration: 6000 })}
                   className="btn-secondary border-orange-500/50 text-orange-400 cursor-not-allowed opacity-80"
                 >
-                  <CheckCircle size={14} /> Submit Final to Client
+                  <Send size={14} /> Send Tax Form to Client
                 </button>
               )
+            )}
+            {awaitingClientReview && (
+              <button disabled className="btn-secondary border-brand-info/50 text-brand-info cursor-not-allowed opacity-80">
+                <CheckCircle size={14} /> Awaiting Client Review
+              </button>
+            )}
+            {canArchive && (
+              <button
+                onClick={() => archiveSubmission.mutate()}
+                disabled={archiveSubmission.isPending}
+                className="btn-primary bg-brand-success border-brand-success hover:opacity-90"
+              >
+                {archiveSubmission.isPending
+                  ? <><span className="w-4 h-4 border-2 border-brand-black border-t-transparent rounded-full animate-spin" />Archiving...</>
+                  : <><CheckCircle size={14} /> Mark Complete &amp; Archive</>
+                }
+              </button>
             )}
           </div>
         }
@@ -561,14 +589,14 @@ export default function TaxCalculation() {
         {s?.submitted_at && <span className="text-xs text-brand-gray">Submitted: {formatDate(s.submitted_at)}</span>}
       </div>
 
-      {/* Payment gate banner */}
+      {/* Status banners */}
       {canFinalSubmit && (
         paymentReceived ? (
           <div className="mb-5 flex items-start gap-3 bg-brand-success/10 border border-brand-success/30 rounded-xl p-4">
             <CheckCircle size={16} className="text-brand-success flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-white">Payment Confirmed by Accounts Division</p>
-              <p className="text-xs text-brand-gray mt-0.5">You can now submit the final tax return to the client.</p>
+              <p className="text-xs text-brand-gray mt-0.5">You can now send the final tax return to the client for review.</p>
             </div>
           </div>
         ) : (
@@ -576,10 +604,28 @@ export default function TaxCalculation() {
             <AlertCircle size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-white">Awaiting Payment Confirmation</p>
-              <p className="text-xs text-brand-gray mt-0.5">Client has confirmed their submission. Accounts Division must confirm payment received before you can submit the final return.</p>
+              <p className="text-xs text-brand-gray mt-0.5">Client acknowledged the payment notice. Accounts Division must confirm payment before you can send the final return.</p>
             </div>
           </div>
         )
+      )}
+      {awaitingClientReview && (
+        <div className="mb-5 flex items-start gap-3 bg-blue-400/10 border border-blue-400/30 rounded-xl p-4">
+          <CheckCircle size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-white">Tax Form Sent — Awaiting Client Review</p>
+            <p className="text-xs text-brand-gray mt-0.5">The client has been sent the full tax computation and will confirm once reviewed.</p>
+          </div>
+        </div>
+      )}
+      {canArchive && (
+        <div className="mb-5 flex items-start gap-3 bg-brand-success/10 border border-brand-success/30 rounded-xl p-4">
+          <CheckCircle size={16} className="text-brand-success flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-white">Client Has Confirmed the Tax Return</p>
+            <p className="text-xs text-brand-gray mt-0.5">Click "Mark Complete &amp; Archive" to finalise and archive the submission.</p>
+          </div>
+        </div>
       )}
 
       {/* Tabs */}

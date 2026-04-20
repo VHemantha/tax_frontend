@@ -57,6 +57,8 @@ export const STATUS_LABELS = {
   under_review: 'Under Review',
   calculation_done: 'Calculation Done',
   confirmed: 'Confirmed',
+  awaiting_client_review: 'Review Required',
+  client_confirmed: 'Client Confirmed',
 }
 
 export const STATUS_COLORS = {
@@ -71,6 +73,8 @@ export const STATUS_COLORS = {
   under_review: 'bg-yellow-900/30 text-brand-yellow',
   calculation_done: 'bg-purple-900/30 text-purple-400',
   confirmed: 'bg-brand-success-pale text-brand-success',
+  awaiting_client_review: 'bg-blue-900/30 text-blue-400',
+  client_confirmed: 'bg-brand-success-pale text-brand-success',
 }
 
 export const PAYMENT_STATUS_COLORS = {

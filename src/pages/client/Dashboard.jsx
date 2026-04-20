@@ -132,6 +132,38 @@ export default function ClientDashboard() {
         </div>
       )}
 
+      {/* Awaiting client review — full tax computation ready */}
+      {currentSubmission?.status === 'awaiting_client_review' && (
+        <div className="mb-6 bg-brand-yellow/10 border border-brand-yellow/30 rounded-xl p-4 flex items-start gap-3 animate-slide-up">
+          <FileText size={18} className="text-brand-yellow flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-white">Action Required — Review Your Tax Return</p>
+            <p className="text-sm text-brand-gray mt-0.5">
+              Your tax computation for <span className="text-white">{currentSubmission.tax_year_label}</span> is ready. Please review and confirm.
+            </p>
+            <button
+              onClick={() => navigate(`/client/confirm/${currentSubmission.id}`)}
+              className="btn-primary mt-3 text-xs"
+            >
+              Review &amp; Confirm <ChevronRight size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Client confirmed — waiting for consultant to archive */}
+      {currentSubmission?.status === 'client_confirmed' && (
+        <div className="mb-6 bg-brand-success/10 border border-brand-success/30 rounded-xl p-4 flex items-start gap-3 animate-slide-up">
+          <CheckCircle size={18} className="text-brand-success flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-white">Tax Return Confirmed</p>
+            <p className="text-sm text-brand-gray mt-0.5">
+              You have confirmed your tax return. Your consultant will finalise and archive it shortly.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Stats cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div className="card flex items-center gap-4">
@@ -193,6 +225,14 @@ export default function ClientDashboard() {
                         Continue Form <ArrowRight size={14} />
                       </button>
                     )}
+                    {currentSubmission.status === 'awaiting_client_review' && (
+                      <button
+                        onClick={() => navigate(`/client/confirm/${currentSubmission.id}`)}
+                        className="btn-primary"
+                      >
+                        Review &amp; Confirm <ChevronRight size={14} />
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <button
@@ -251,12 +291,10 @@ export default function ClientDashboard() {
                     <tr
                       key={sub.id}
                       className="table-row cursor-pointer"
-                      onClick={() => ['draft', 'info_requested'].includes(sub.status)
-                        ? navigate(`/client/tax-form/${sub.id}`)
-                        : sub.status === 'awaiting_confirmation'
-                        ? navigate(`/client/confirm/${sub.id}`)
-                        : null
-                      }
+                      onClick={() => {
+                        if (['draft', 'info_requested'].includes(sub.status)) navigate(`/client/tax-form/${sub.id}`)
+                        else if (['awaiting_confirmation', 'awaiting_client_review'].includes(sub.status)) navigate(`/client/confirm/${sub.id}`)
+                      }}
                     >
                       <td className="table-cell font-medium">{sub.tax_year_label}</td>
                       <td className="table-cell"><StatusBadge status={sub.status} /></td>
