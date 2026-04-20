@@ -1,6 +1,12 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 
+function defaultRedirect(role) {
+  if (role === 'consultant') return '/consultant/dashboard'
+  if (role === 'super_admin') return '/super-admin/dashboard'
+  return '/client/dashboard'
+}
+
 export default function ProtectedRoute({ role }) {
   const { user, loading } = useAuth()
 
@@ -14,7 +20,7 @@ export default function ProtectedRoute({ role }) {
 
   if (!user) return <Navigate to="/login" replace />
   if (role && user.role !== role) {
-    return <Navigate to={user.role === 'consultant' ? '/consultant/dashboard' : '/client/dashboard'} replace />
+    return <Navigate to={defaultRedirect(user.role)} replace />
   }
 
   return <Outlet />

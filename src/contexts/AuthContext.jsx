@@ -40,6 +40,8 @@ export function AuthProvider({ children }) {
 
     if (role === 'consultant') {
       navigate('/consultant/dashboard')
+    } else if (role === 'super_admin') {
+      navigate('/super-admin/dashboard')
     } else {
       navigate('/client/dashboard')
     }

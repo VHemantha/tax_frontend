@@ -22,6 +22,11 @@ import ArchivePage from './pages/consultant/ArchivePage'
 import Portfolio from './pages/consultant/Portfolio'
 import StatusDrillDown from './pages/consultant/StatusDrillDown'
 
+// Super Admin pages
+import SuperAdminLayout from './components/layout/SuperAdminLayout'
+import SuperAdminDashboard from './pages/superadmin/Dashboard'
+import SuperAdminClientList from './pages/superadmin/ClientList'
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -51,6 +56,16 @@ export default function App() {
               <Route path="/consultant/archive" element={<ArchivePage />} />
               <Route path="/consultant/portfolio" element={<Portfolio />} />
               <Route path="/consultant/status/:statusKey" element={<StatusDrillDown />} />
+            </Route>
+          </Route>
+
+          {/* Super Admin Routes */}
+          <Route element={<ProtectedRoute role="super_admin" />}>
+            <Route element={<SuperAdminLayout />}>
+              <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
+              <Route path="/super-admin/clients" element={<SuperAdminClientList />} />
+              {/* Reuses the same RegisterClient form — shows consultant selector for super_admin role */}
+              <Route path="/super-admin/clients/register" element={<RegisterClient />} />
             </Route>
           </Route>
 
