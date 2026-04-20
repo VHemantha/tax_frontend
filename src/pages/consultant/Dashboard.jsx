@@ -33,6 +33,15 @@ export default function ConsultantDashboard() {
   })
 
   // statCards carry a statusKey so clicking drills down to a filtered list
+  const ACTIONABLE_STATUSES = [
+    'submitted', 'under_review', 'info_requested',
+    'awaiting_confirmation', 'confirmed', 'awaiting_client_review', 'client_confirmed',
+  ]
+  const pendingSubmissions = submissions.filter(s => ACTIONABLE_STATUSES.includes(s.status)).slice(0, 10)
+  const paymentStageSubs = submissions.filter(s =>
+    ['confirmed', 'client_confirmed'].includes(s.status)
+  )
+
   const statCards = [
     { label: 'Total Clients', value: stats?.total_clients || 0, icon: Users, color: 'text-brand-yellow', bg: 'bg-brand-yellow/10', statusKey: null },
     { label: 'Pending Review', value: stats?.pending_review || 0, icon: Clock, color: 'text-brand-yellow-muted', bg: 'bg-brand-yellow/10', statusKey: 'submitted' },
@@ -48,17 +57,6 @@ export default function ConsultantDashboard() {
     { name: 'Awaiting', value: stats?.awaiting_confirmation || 0, fill: '#F97316' },
     { name: 'Archived', value: stats?.archived || 0, fill: '#10B981' },
   ]
-
-  const ACTIONABLE_STATUSES = [
-    'submitted', 'under_review', 'info_requested',
-    'awaiting_confirmation', 'confirmed', 'awaiting_client_review', 'client_confirmed',
-  ]
-  const pendingSubmissions = submissions.filter(s => ACTIONABLE_STATUSES.includes(s.status)).slice(0, 10)
-
-  // Payment-stage submissions needing consultant action
-  const paymentStageSubs = submissions.filter(s =>
-    ['confirmed', 'client_confirmed'].includes(s.status)
-  )
 
   return (
     <div className="animate-fade-in">
