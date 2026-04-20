@@ -8,7 +8,7 @@ import PageHeader from '../../components/common/PageHeader'
 import Modal from '../../components/common/Modal'
 import {
   ArrowLeft, Calculator, MessageSquare, FileText, Download,
-  CheckCircle, Eye, ExternalLink
+  CheckCircle, Eye, ExternalLink, Send, Archive
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -76,6 +76,38 @@ export default function ClientDetail() {
                   className="btn-primary"
                 >
                   <Calculator size={15} /> Calculate Tax
+                </button>
+              )}
+              {latestSubmission?.status === 'confirmed' && latestSubmission?.payment_status === 'paid' && (
+                <button
+                  onClick={() => navigate(`/consultant/submissions/${latestSubmission.id}/calculate`)}
+                  className="btn-primary bg-brand-success border-brand-success hover:opacity-90"
+                >
+                  <Send size={15} /> Send Tax Form to Client
+                </button>
+              )}
+              {latestSubmission?.status === 'confirmed' && latestSubmission?.payment_status !== 'paid' && (
+                <button
+                  onClick={() => navigate(`/consultant/submissions/${latestSubmission.id}/calculate`)}
+                  className="btn-secondary border-orange-500/50 text-orange-400"
+                >
+                  <Eye size={15} /> Awaiting Payment
+                </button>
+              )}
+              {latestSubmission?.status === 'awaiting_client_review' && (
+                <button
+                  onClick={() => navigate(`/consultant/submissions/${latestSubmission.id}/calculate`)}
+                  className="btn-secondary border-blue-400/50 text-blue-400"
+                >
+                  <Eye size={15} /> Awaiting Client Review
+                </button>
+              )}
+              {latestSubmission?.status === 'client_confirmed' && (
+                <button
+                  onClick={() => navigate(`/consultant/submissions/${latestSubmission.id}/calculate`)}
+                  className="btn-primary bg-brand-success border-brand-success hover:opacity-90"
+                >
+                  <Archive size={15} /> Mark Complete &amp; Archive
                 </button>
               )}
             </div>
@@ -155,6 +187,26 @@ export default function ClientDetail() {
                   <div className="mt-3 bg-brand-red/10 border border-brand-red/20 rounded-lg px-3 py-2">
                     <p className="text-xs text-brand-red font-medium">Info Requested:</p>
                     <p className="text-xs text-brand-gray mt-0.5">{sub.info_request_message}</p>
+                  </div>
+                )}
+                {sub.status === 'confirmed' && sub.payment_status !== 'paid' && (
+                  <div className="mt-3 bg-orange-400/10 border border-orange-400/20 rounded-lg px-3 py-2">
+                    <p className="text-xs text-orange-400 font-medium">⏳ Awaiting payment confirmation from Accounts Division</p>
+                  </div>
+                )}
+                {sub.status === 'confirmed' && sub.payment_status === 'paid' && (
+                  <div className="mt-3 bg-brand-success/10 border border-brand-success/20 rounded-lg px-3 py-2">
+                    <p className="text-xs text-brand-success font-medium">✓ Payment confirmed — Send the tax form to client for review</p>
+                  </div>
+                )}
+                {sub.status === 'awaiting_client_review' && (
+                  <div className="mt-3 bg-blue-400/10 border border-blue-400/20 rounded-lg px-3 py-2">
+                    <p className="text-xs text-blue-400 font-medium">⏳ Tax form sent — Awaiting client review and confirmation</p>
+                  </div>
+                )}
+                {sub.status === 'client_confirmed' && (
+                  <div className="mt-3 bg-brand-success/10 border border-brand-success/20 rounded-lg px-3 py-2">
+                    <p className="text-xs text-brand-success font-medium">✓ Client confirmed — Ready to mark complete and archive</p>
                   </div>
                 )}
               </div>

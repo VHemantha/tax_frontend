@@ -7,7 +7,7 @@ import StatusBadge from '../../components/common/StatusBadge'
 import PageHeader from '../../components/common/PageHeader'
 import {
   Users, FileText, Clock, CheckCircle, AlertCircle, TrendingUp,
-  ArrowRight, UserPlus, Bell, BarChart3
+  ArrowRight, UserPlus, Bell, BarChart3, Send
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
@@ -32,11 +32,12 @@ export default function ConsultantDashboard() {
     queryFn: () => api.get('/notifications/?unread=true').then(r => r.data),
   })
 
-  // Change 4: statCards now carry a statusKey so clicking drills down to a filtered list
+  // statCards carry a statusKey so clicking drills down to a filtered list
   const statCards = [
     { label: 'Total Clients', value: stats?.total_clients || 0, icon: Users, color: 'text-brand-yellow', bg: 'bg-brand-yellow/10', statusKey: null },
     { label: 'Pending Review', value: stats?.pending_review || 0, icon: Clock, color: 'text-brand-yellow-muted', bg: 'bg-brand-yellow/10', statusKey: 'submitted' },
     { label: 'Awaiting Confirmation', value: stats?.awaiting_confirmation || 0, icon: Bell, color: 'text-orange-400', bg: 'bg-orange-400/10', statusKey: 'awaiting_confirmation' },
+    { label: 'Action Required', value: paymentStageSubs.length, icon: Send, color: 'text-blue-400', bg: 'bg-blue-400/10', statusKey: null },
     { label: 'Archived', value: stats?.archived || 0, icon: CheckCircle, color: 'text-brand-success', bg: 'bg-brand-success/10', statusKey: 'archived' },
   ]
 
@@ -48,9 +49,16 @@ export default function ConsultantDashboard() {
     { name: 'Archived', value: stats?.archived || 0, fill: '#10B981' },
   ]
 
-  const pendingSubmissions = submissions.filter(s =>
-    ['submitted', 'under_review', 'awaiting_confirmation'].includes(s.status)
-  ).slice(0, 8)
+  const ACTIONABLE_STATUSES = [
+    'submitted', 'under_review', 'info_requested',
+    'awaiting_confirmation', 'confirmed', 'awaiting_client_review', 'client_confirmed',
+  ]
+  const pendingSubmissions = submissions.filter(s => ACTIONABLE_STATUSES.includes(s.status)).slice(0, 10)
+
+  // Payment-stage submissions needing consultant action
+  const paymentStageSubs = submissions.filter(s =>
+    ['confirmed', 'client_confirmed'].includes(s.status)
+  )
 
   return (
     <div className="animate-fade-in">
@@ -80,8 +88,8 @@ export default function ConsultantDashboard() {
         </div>
       )}
 
-      {/* Stat Cards — clickable for drill-down (Change 4) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         {statCards.map(({ label, value, icon: Icon, color, bg, statusKey }) => (
           <div
             key={label}
@@ -105,6 +113,41 @@ export default function ConsultantDashboard() {
           </div>
         ))}
       </div>
+
+      {/* Post-payment action items */}
+      {paymentStageSubs.length > 0 && (
+        <div className="mb-6 card border-blue-400/30">
+          <h3 className="section-header mb-3">
+            <Send size={15} className="text-blue-400" />
+            Action Required — Post-Payment Submissions
+          </h3>
+          <div className="space-y-2">
+            {paymentStageSubs.map(sub => (
+              <div
+                key={sub.id}
+                className="flex items-center justify-between bg-brand-black-soft hover:bg-brand-black-mid rounded-lg px-4 py-3 cursor-pointer transition-colors"
+                onClick={() => navigate(`/consultant/submissions/${sub.id}/calculate`)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-400/10 rounded-full flex items-center justify-center">
+                    <Users size={14} className="text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">{sub.client_name}</p>
+                    <p className="text-xs text-brand-gray">{sub.tax_year_label}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${sub.status === 'client_confirmed' ? 'bg-brand-success/15 text-brand-success' : 'bg-blue-400/10 text-blue-400'}`}>
+                    {sub.status === 'client_confirmed' ? '✓ Client Confirmed — Archive Now' : '⏳ Payment Confirmed — Send to Client'}
+                  </span>
+                  <ArrowRight size={14} className="text-brand-gray" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Chart + Recent */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">

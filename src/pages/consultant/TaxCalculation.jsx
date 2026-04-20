@@ -7,7 +7,7 @@ import StatusBadge from '../../components/common/StatusBadge'
 import PageHeader from '../../components/common/PageHeader'
 import {
   ArrowLeft, Calculator, Send, FileText, Eye, Download,
-  CheckCircle, Pencil, Save, X, ChevronDown, ChevronRight,
+  CheckCircle, AlertCircle, Pencil, Save, X, ChevronDown, ChevronRight,
   User, DollarSign, Home, Banknote, TrendingUp, Trash2, Plus,
   History
 } from 'lucide-react'
