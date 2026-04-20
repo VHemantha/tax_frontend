@@ -23,23 +23,20 @@ export default function RegisterClient() {
     defaultValues: { password: generatePassword() }
   })
 
-  const { data: consultants = [] } = useQuery({
+  const { data: consultants = [], isLoading: consultantsLoading } = useQuery({
     queryKey: ['consultant-list'],
     queryFn: () => api.get('/clients/consultants/').then(r => r.data),
-    enabled: isSuperAdmin,
   })
 
   async function onSubmit(data) {
     setLoading(true)
     try {
       const payload = { ...data }
-      if (isSuperAdmin) {
+      if (data.consultant_id) {
         payload.consultant_id = Number(data.consultant_id)
       }
       await api.post('/clients/register/', payload)
-      const assignedConsultant = isSuperAdmin
-        ? consultants.find(c => String(c.id) === String(data.consultant_id))?.name
-        : null
+      const assignedConsultant = consultants.find(c => String(c.id) === String(data.consultant_id))?.name
       setSuccess({
         email: data.email,
         username: data.username,
@@ -96,9 +93,7 @@ export default function RegisterClient() {
     <div className="max-w-3xl animate-fade-in">
       <PageHeader
         title="Register New Client"
-        subtitle={isSuperAdmin
-          ? 'Create a client account and assign a responsible consultant'
-          : 'Create a new client account and generate login credentials'}
+        subtitle="Create a new client account and assign a handler"
       />
 
       {success && (
@@ -128,35 +123,36 @@ export default function RegisterClient() {
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="card">
-        {/* Consultant selector — only shown for super admin */}
-        {isSuperAdmin && (
-          <div className="mb-6 p-4 bg-brand-yellow/5 border border-brand-yellow/20 rounded-xl">
-            <label className="input-label text-brand-yellow">
-              Assign to Consultant <span className="text-brand-red">*</span>
-            </label>
-            <div className="relative mt-1">
-              <select
-                {...register('consultant_id', { required: 'Please select a consultant' })}
-                className={clsx(
-                  'input-field appearance-none pr-8',
-                  errors.consultant_id && 'border-brand-red focus:border-brand-red'
-                )}
-              >
-                <option value="">— Select Consultant —</option>
-                {consultants.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray pointer-events-none" />
-            </div>
-            {errors.consultant_id && (
-              <p className="text-xs text-brand-red mt-1 flex items-center gap-1">
-                <AlertCircle size={11} />{errors.consultant_id.message}
-              </p>
-            )}
-            <p className="text-xs text-brand-gray mt-1">This consultant will be responsible for managing this client.</p>
+        {/* Handler / Consultant selector — always visible */}
+        <div className="mb-6 p-4 bg-brand-yellow/5 border border-brand-yellow/20 rounded-xl">
+          <label className="input-label text-brand-yellow">
+            Assign to Handler <span className="text-brand-red">*</span>
+          </label>
+          <div className="relative mt-1">
+            <select
+              {...register('consultant_id', { required: 'Please select a handler' })}
+              className={clsx(
+                'input-field appearance-none pr-8',
+                errors.consultant_id && 'border-brand-red focus:border-brand-red'
+              )}
+              disabled={consultantsLoading}
+            >
+              <option value="">
+                {consultantsLoading ? 'Loading handlers…' : '— Select Handler —'}
+              </option>
+              {consultants.map(c => (
+                <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray pointer-events-none" />
           </div>
-        )}
+          {errors.consultant_id && (
+            <p className="text-xs text-brand-red mt-1 flex items-center gap-1">
+              <AlertCircle size={11} />{errors.consultant_id.message}
+            </p>
+          )}
+          <p className="text-xs text-brand-gray mt-1">This handler will be responsible for managing this client.</p>
+        </div>
 
         <h3 className="section-header">
           <UserPlus size={18} className="text-brand-yellow" />
