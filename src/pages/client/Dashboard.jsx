@@ -99,22 +99,35 @@ export default function ClientDashboard() {
         </div>
       )}
 
-      {/* Awaiting confirmation alert */}
+      {/* Awaiting confirmation — payment notice only, no tax figures */}
       {currentSubmission?.status === 'awaiting_confirmation' && (
         <div className="mb-6 bg-brand-yellow/10 border border-brand-yellow/30 rounded-xl p-4 flex items-start gap-3 animate-slide-up">
           <Bell size={18} className="text-brand-yellow flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-semibold text-white">Tax Calculation Ready</p>
+            <p className="text-sm font-semibold text-white">Payment Required</p>
             <p className="text-sm text-brand-gray mt-0.5">
-              Your consultant has completed the tax calculation. Net Tax Payable:{' '}
-              <span className="text-white font-semibold">{formatCurrency(currentSubmission.net_tax_payable)}</span>
+              Your tax return for <span className="text-white">{currentSubmission.tax_year_label}</span> has been processed.
+              Please contact the office to arrange payment.
             </p>
             <button
               onClick={() => navigate(`/client/confirm/${currentSubmission.id}`)}
               className="btn-primary mt-3 text-xs"
             >
-              Review & Confirm <ChevronRight size={12} />
+              View Payment Notice <ChevronRight size={12} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmed — awaiting accounts payment confirmation */}
+      {currentSubmission?.status === 'confirmed' && (
+        <div className="mb-6 bg-blue-400/10 border border-blue-400/30 rounded-xl p-4 flex items-start gap-3 animate-slide-up">
+          <Clock size={18} className="text-blue-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-white">Awaiting Payment Confirmation</p>
+            <p className="text-sm text-brand-gray mt-0.5">
+              Your payment notice has been acknowledged. Accounts Division is confirming your payment. Your consultant will notify you once finalised.
+            </p>
           </div>
         </div>
       )}
@@ -193,7 +206,7 @@ export default function ClientDashboard() {
               </div>
             </div>
 
-            {currentSubmission && (
+            {currentSubmission && !['awaiting_confirmation', 'confirmed'].includes(currentSubmission.status) && (
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="bg-brand-black-soft rounded-lg p-3">
                   <p className="text-xs text-brand-gray">Total Assessable Income</p>
@@ -232,24 +245,31 @@ export default function ClientDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {submissions.map(sub => (
-                  <tr
-                    key={sub.id}
-                    className="table-row cursor-pointer"
-                    onClick={() => ['draft', 'info_requested'].includes(sub.status)
-                      ? navigate(`/client/tax-form/${sub.id}`)
-                      : sub.status === 'awaiting_confirmation'
-                      ? navigate(`/client/confirm/${sub.id}`)
-                      : null
-                    }
-                  >
-                    <td className="table-cell font-medium">{sub.tax_year_label}</td>
-                    <td className="table-cell"><StatusBadge status={sub.status} /></td>
-                    <td className="table-cell text-right font-mono">{formatCurrency(sub.total_assessable_income)}</td>
-                    <td className="table-cell text-right font-mono text-brand-yellow">{formatCurrency(sub.net_tax_payable)}</td>
-                    <td className="table-cell text-right text-brand-gray text-xs">{formatDateTime(sub.submitted_at)}</td>
-                  </tr>
-                ))}
+                {submissions.map(sub => {
+                  const paymentPending = ['awaiting_confirmation', 'confirmed'].includes(sub.status)
+                  return (
+                    <tr
+                      key={sub.id}
+                      className="table-row cursor-pointer"
+                      onClick={() => ['draft', 'info_requested'].includes(sub.status)
+                        ? navigate(`/client/tax-form/${sub.id}`)
+                        : sub.status === 'awaiting_confirmation'
+                        ? navigate(`/client/confirm/${sub.id}`)
+                        : null
+                      }
+                    >
+                      <td className="table-cell font-medium">{sub.tax_year_label}</td>
+                      <td className="table-cell"><StatusBadge status={sub.status} /></td>
+                      <td className="table-cell text-right font-mono text-brand-gray">
+                        {paymentPending ? '—' : formatCurrency(sub.total_assessable_income)}
+                      </td>
+                      <td className="table-cell text-right font-mono text-brand-yellow">
+                        {paymentPending ? '—' : formatCurrency(sub.net_tax_payable)}
+                      </td>
+                      <td className="table-cell text-right text-brand-gray text-xs">{formatDateTime(sub.submitted_at)}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

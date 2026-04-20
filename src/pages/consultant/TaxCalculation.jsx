@@ -373,11 +373,28 @@ export default function TaxCalculation() {
   const confirmCalc = useMutation({
     mutationFn: () => api.post(`/tax/submissions/${submissionId}/confirm-calculation/`),
     onSuccess: () => {
-      toast.success('Calculation confirmed! Client has been notified.')
+      toast.success('Client notified. Accounts Division has been alerted for payment confirmation.')
       qc.invalidateQueries(['submission', submissionId])
       navigate(-1)
     },
     onError: err => toast.error(err.response?.data?.error || 'Failed'),
+  })
+
+  const finalSubmit = useMutation({
+    mutationFn: () => api.post(`/tax/submissions/${submissionId}/final-submit/`),
+    onSuccess: () => {
+      toast.success('Final return submitted! Client has been notified.')
+      qc.invalidateQueries(['submission', submissionId])
+      navigate(-1)
+    },
+    onError: err => {
+      const data = err.response?.data
+      if (data?.payment_not_received) {
+        toast.error('Payment has not been received. Please wait for Accounts Division to confirm payment before submitting.', { duration: 6000 })
+      } else {
+        toast.error(data?.error || 'Failed to submit')
+      }
+    },
   })
 
   function handleFieldUpdate(field, value) {
@@ -462,6 +479,8 @@ export default function TaxCalculation() {
   const s = submission
   const canEdit = s?.status !== 'archived'
   const canConfirm = ['submitted', 'under_review', 'info_requested'].includes(s?.status)
+  const canFinalSubmit = s?.status === 'confirmed'
+  const paymentReceived = s?.payment_status === 'paid'
   // val: pendingUpdates > stored submission > live calculation (Change 5 — TAI fix)
   const val = k => pendingUpdates[k] ?? s?.[k] ?? liveCalc?.[k]
   const liveVal = k => liveCalc?.[k] ?? s?.[k]
@@ -512,6 +531,27 @@ export default function TaxCalculation() {
                 }
               </button>
             )}
+            {canFinalSubmit && (
+              paymentReceived ? (
+                <button
+                  onClick={() => finalSubmit.mutate()}
+                  disabled={finalSubmit.isPending}
+                  className="btn-primary bg-brand-success border-brand-success hover:opacity-90"
+                >
+                  {finalSubmit.isPending
+                    ? <><span className="w-4 h-4 border-2 border-brand-black border-t-transparent rounded-full animate-spin" />Submitting...</>
+                    : <><CheckCircle size={14} /> Submit Final to Client</>
+                  }
+                </button>
+              ) : (
+                <button
+                  onClick={() => toast.error('Payment has not been received. Accounts Division must confirm payment before you can submit the final return.', { duration: 6000 })}
+                  className="btn-secondary border-orange-500/50 text-orange-400 cursor-not-allowed opacity-80"
+                >
+                  <CheckCircle size={14} /> Submit Final to Client
+                </button>
+              )
+            )}
           </div>
         }
       />
@@ -520,6 +560,27 @@ export default function TaxCalculation() {
         <StatusBadge status={s?.status} />
         {s?.submitted_at && <span className="text-xs text-brand-gray">Submitted: {formatDate(s.submitted_at)}</span>}
       </div>
+
+      {/* Payment gate banner */}
+      {canFinalSubmit && (
+        paymentReceived ? (
+          <div className="mb-5 flex items-start gap-3 bg-brand-success/10 border border-brand-success/30 rounded-xl p-4">
+            <CheckCircle size={16} className="text-brand-success flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-white">Payment Confirmed by Accounts Division</p>
+              <p className="text-xs text-brand-gray mt-0.5">You can now submit the final tax return to the client.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-5 flex items-start gap-3 bg-orange-400/10 border border-orange-400/30 rounded-xl p-4">
+            <AlertCircle size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-white">Awaiting Payment Confirmation</p>
+              <p className="text-xs text-brand-gray mt-0.5">Client has confirmed their submission. Accounts Division must confirm payment received before you can submit the final return.</p>
+            </div>
+          </div>
+        )
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 mb-5 bg-brand-black-light border border-brand-gray-border rounded-xl p-1 w-fit">

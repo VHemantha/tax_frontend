@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 function defaultRedirect(role) {
   if (role === 'consultant') return '/consultant/dashboard'
   if (role === 'super_admin') return '/super-admin/dashboard'
+  if (role === 'accounts_division') return '/accounts/dashboard'
   return '/client/dashboard'
 }
 

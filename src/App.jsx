@@ -22,6 +22,10 @@ import ArchivePage from './pages/consultant/ArchivePage'
 import Portfolio from './pages/consultant/Portfolio'
 import StatusDrillDown from './pages/consultant/StatusDrillDown'
 
+// Accounts Division pages
+import AccountsDeptLayout from './components/layout/AccountsDeptLayout'
+import AccountsDashboard from './pages/accounts/Dashboard'
+
 // Super Admin pages
 import SuperAdminLayout from './components/layout/SuperAdminLayout'
 import SuperAdminDashboard from './pages/superadmin/Dashboard'
@@ -56,6 +60,13 @@ export default function App() {
               <Route path="/consultant/archive" element={<ArchivePage />} />
               <Route path="/consultant/portfolio" element={<Portfolio />} />
               <Route path="/consultant/status/:statusKey" element={<StatusDrillDown />} />
+            </Route>
+          </Route>
+
+          {/* Accounts Division Routes */}
+          <Route element={<ProtectedRoute role="accounts_division" />}>
+            <Route element={<AccountsDeptLayout />}>
+              <Route path="/accounts/dashboard" element={<AccountsDashboard />} />
             </Route>
           </Route>
 

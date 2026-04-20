@@ -1,60 +1,29 @@
-import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
-import { formatCurrency } from '../../utils/format'
 import PageHeader from '../../components/common/PageHeader'
-import { CheckCircle, Download, AlertTriangle, TrendingUp } from 'lucide-react'
+import { CheckCircle, Banknote, Phone, ArrowLeft, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
-
-function CalcRow({ label, value, indent, bold, highlight }) {
-  return (
-    <div className={`flex justify-between items-center py-2.5 border-b border-brand-gray-border last:border-0
-                     ${highlight ? 'bg-brand-yellow/8 -mx-2 px-2 rounded-lg' : ''}
-                     ${indent ? 'pl-6' : ''}`}>
-      <span className={`text-sm ${bold ? 'font-semibold text-white' : 'text-brand-gray'}`}>{label}</span>
-      <span className={`font-mono text-sm ${highlight ? 'text-brand-yellow font-bold text-lg' : bold ? 'text-white font-semibold' : 'text-white'}`}>
-        {value}
-      </span>
-    </div>
-  )
-}
 
 export default function ClientConfirmation() {
   const { submissionId } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const [agreed, setAgreed] = useState(false)
 
   const { data: submission, isLoading } = useQuery({
     queryKey: ['submission', submissionId],
     queryFn: () => api.get(`/tax/submissions/${submissionId}/`).then(r => r.data),
   })
 
-  const confirmMutation = useMutation({
+  const acknowledgeMutation = useMutation({
     mutationFn: () => api.post(`/tax/submissions/${submissionId}/client-confirm/`),
     onSuccess: () => {
-      toast.success('Tax submission confirmed and archived successfully!')
+      toast.success('Acknowledged. Accounts Division will confirm your payment shortly.')
       qc.invalidateQueries(['my-submissions'])
       navigate('/client/dashboard')
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Confirmation failed'),
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed'),
   })
-
-  async function downloadPDF() {
-    try {
-      const response = await api.get(`/tax/submissions/${submissionId}/pdf/`, { responseType: 'blob' })
-      const url = window.URL.createObjectURL(new Blob([response.data]))
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `Tax_Return_${submission?.tax_year_label}.pdf`)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-    } catch {
-      toast.error('Failed to download PDF')
-    }
-  }
 
   if (isLoading) return (
     <div className="flex items-center justify-center h-64">
@@ -62,109 +31,96 @@ export default function ClientConfirmation() {
     </div>
   )
 
+  if (submission?.status === 'confirmed') {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <Clock size={48} className="text-brand-yellow opacity-60" />
+        <p className="text-white text-lg font-semibold">Awaiting Payment Confirmation</p>
+        <p className="text-sm text-brand-gray">Accounts Division is confirming your payment. Your consultant will notify you once complete.</p>
+        <button onClick={() => navigate('/client/dashboard')} className="btn-primary">Back to Dashboard</button>
+      </div>
+    )
+  }
+
   if (submission?.status !== 'awaiting_confirmation') {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <CheckCircle size={48} className="text-brand-success" />
-        <p className="text-white text-lg font-semibold">No pending confirmation</p>
-        <button onClick={() => navigate('/client/dashboard')} className="btn-primary">Go to Dashboard</button>
+        <p className="text-white text-lg font-semibold">No pending action</p>
+        <button onClick={() => navigate('/client/dashboard')} className="btn-primary">Back to Dashboard</button>
       </div>
     )
   }
 
   return (
-    <div className="max-w-3xl mx-auto animate-fade-in">
+    <div className="max-w-2xl mx-auto animate-fade-in">
+      <button onClick={() => navigate('/client/dashboard')} className="btn-ghost mb-4 text-sm">
+        <ArrowLeft size={15} /> Back to Dashboard
+      </button>
+
       <PageHeader
-        title="Review Tax Calculation"
-        subtitle="Your consultant has completed the tax calculation. Please review and confirm."
+        title="Payment Required"
+        subtitle={`Tax Return ${submission?.tax_year_label}`}
       />
 
-      {/* Consultant notes if any */}
-      {submission?.consultant_notes && (
-        <div className="card mb-6 border-brand-yellow/30">
-          <p className="text-xs text-brand-yellow font-semibold uppercase tracking-wider mb-2">Consultant Notes</p>
-          <p className="text-sm text-brand-gray">{submission.consultant_notes}</p>
-        </div>
-      )}
-
-      {/* Tax Calculation Summary */}
-      <div className="card mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="section-header mb-0">
-            <TrendingUp size={18} className="text-brand-yellow" />
-            Tax Calculation — {submission?.tax_year_label}
-          </h3>
-          <button onClick={downloadPDF} className="btn-secondary text-xs px-3 py-1.5">
-            <Download size={13} /> Download PDF
-          </button>
+      {/* Payment notice card */}
+      <div className="card mb-6 border-brand-yellow/30">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 bg-brand-yellow/15 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Banknote size={22} className="text-brand-yellow" />
+          </div>
+          <div>
+            <p className="text-base font-bold text-white">Your Tax Return Has Been Processed</p>
+            <p className="text-sm text-brand-gray">A payment is required to finalise your submission.</p>
+          </div>
         </div>
 
-        <div className="space-y-0">
-          <CalcRow label="Total Assessable Income" value={formatCurrency(submission?.total_assessable_income)} bold />
-          <CalcRow label="Less: Qualifying Payments" value={`(${formatCurrency(submission?.total_qualifying_payments)})`} indent />
-          <CalcRow label="Less: Personal Relief" value={`(${formatCurrency(submission?.personal_relief)})`} indent />
-          <CalcRow label="Less: Rent Relief (25%)" value={`(${formatCurrency(submission?.rent_relief)})`} indent />
-          <CalcRow label="NET TAXABLE INCOME" value={formatCurrency(submission?.net_taxable_income)} bold />
-
-          <div className="py-2" />
-          <CalcRow label="Gross Tax" value={formatCurrency(submission?.gross_tax)} />
-          <CalcRow label="Less: Total Tax Credits" value={`(${formatCurrency(submission?.total_tax_credits)})`} indent />
-
-          <div className="mt-2 bg-brand-yellow/10 border border-brand-yellow/30 rounded-xl p-4">
-            <div className="flex justify-between items-center">
-              <span className="text-lg font-bold text-white">NET TAX PAYABLE</span>
-              <span className="text-2xl font-black text-brand-yellow font-mono">
-                {formatCurrency(submission?.net_tax_payable)}
-              </span>
-            </div>
+        <div className="bg-brand-black rounded-xl p-4 space-y-3 text-sm">
+          <div className="flex items-start gap-2">
+            <span className="w-2 h-2 rounded-full bg-brand-yellow mt-1.5 flex-shrink-0" />
+            <p className="text-brand-gray">Your tax return for <span className="text-white">{submission?.tax_year_label}</span> has been reviewed and processed by your consultant.</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="w-2 h-2 rounded-full bg-brand-yellow mt-1.5 flex-shrink-0" />
+            <p className="text-brand-gray">Please contact the office to arrange payment. Our Accounts Division will confirm receipt of payment.</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="w-2 h-2 rounded-full bg-brand-yellow mt-1.5 flex-shrink-0" />
+            <p className="text-brand-gray">Once payment is confirmed, your consultant will submit the final return and you will be notified.</p>
           </div>
         </div>
       </div>
 
-      {/* Warning */}
-      <div className="bg-brand-yellow/5 border border-brand-yellow/20 rounded-xl p-4 mb-6 flex items-start gap-3">
-        <AlertTriangle size={16} className="text-brand-yellow flex-shrink-0 mt-0.5" />
-        <p className="text-sm text-brand-gray">
-          By confirming, you agree that the above tax calculation is accurate. The system will
-          <span className="text-white"> automatically archive all documents</span> in the folder:
-          <br />
-          <code className="text-brand-yellow text-xs mt-1 block">
-            {submission?.client_name} / {submission?.tax_year_label} / Final TAX Submission /
-          </code>
-        </p>
+      {/* Contact info */}
+      <div className="card mb-6 bg-brand-black-soft border-brand-gray-border">
+        <div className="flex items-center gap-2 mb-3">
+          <Phone size={15} className="text-brand-yellow" />
+          <p className="text-sm font-semibold text-white">Contact Accounts Division</p>
+        </div>
+        <p className="text-sm text-brand-gray">Please reach out to your assigned consultant or the accounts office to make the necessary payment arrangements.</p>
       </div>
 
-      {/* Confirmation */}
+      {/* Acknowledge button */}
       <div className="card">
-        <label className="flex items-start gap-3 cursor-pointer mb-6">
-          <input
-            type="checkbox"
-            checked={agreed}
-            onChange={(e) => setAgreed(e.target.checked)}
-            className="mt-0.5 w-4 h-4 accent-brand-yellow"
-          />
-          <span className="text-sm text-brand-gray">
-            I have reviewed the tax calculation above and confirm that all information is correct.
-            I consent to the archiving of all submitted documents and tax records.
-          </span>
-        </label>
-
+        <p className="text-sm text-brand-gray mb-4">
+          Click below to acknowledge that you have received this payment notice. This does not complete your submission — payment confirmation by Accounts Division is still required.
+        </p>
         <div className="flex gap-3 justify-end">
           <button onClick={() => navigate('/client/dashboard')} className="btn-secondary">
-            Review Later
+            Later
           </button>
           <button
-            onClick={() => confirmMutation.mutate()}
-            disabled={!agreed || confirmMutation.isPending}
+            onClick={() => acknowledgeMutation.mutate()}
+            disabled={acknowledgeMutation.isPending}
             className="btn-primary"
           >
-            {confirmMutation.isPending ? (
+            {acknowledgeMutation.isPending ? (
               <>
                 <span className="w-4 h-4 border-2 border-brand-black border-t-transparent rounded-full animate-spin" />
-                Confirming...
+                Processing...
               </>
             ) : (
-              <><CheckCircle size={15} /> Confirm & Archive</>
+              <><CheckCircle size={15} /> Acknowledge Payment Notice</>
             )}
           </button>
         </div>

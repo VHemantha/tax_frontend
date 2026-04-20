@@ -42,6 +42,8 @@ export function AuthProvider({ children }) {
       navigate('/consultant/dashboard')
     } else if (role === 'super_admin') {
       navigate('/super-admin/dashboard')
+    } else if (role === 'accounts_division') {
+      navigate('/accounts/dashboard')
     } else {
       navigate('/client/dashboard')
     }
