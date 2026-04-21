@@ -1319,7 +1319,39 @@ export default function TaxCalculation() {
               )}
 
               <EditableAmount label="Gross Tax" value={val('gross_tax')} fieldKey="gross_tax" onSave={handleFieldUpdate} />
-              <EditableAmount label="Less: Tax Credits" value={val('total_tax_credits')} fieldKey="total_tax_credits" onSave={handleFieldUpdate} indent />
+              <div className="h-px bg-brand-gray-border my-2" />
+              {/* Individual tax credit lines — shown above balance payable */}
+              {parseFloat(s?.tax_credits?.apit_on_salary || 0) > 0 && (
+                <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
+                  <span className="text-xs text-brand-gray">APIT on Salary</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency(s.tax_credits.apit_on_salary)})</span>
+                </div>
+              )}
+              {(s?.wht_certificates || []).map(cert => (
+                <div key={cert.id} className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
+                  <span className="text-xs text-brand-gray">WHT — {cert.category_display}</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency(cert.amount)})</span>
+                </div>
+              ))}
+              {(s?.self_assessment_payments || []).map(inst => (
+                <div key={inst.id} className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
+                  <span className="text-xs text-brand-gray">Self Assessment — Inst. {inst.installment_number}</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency(inst.amount)})</span>
+                </div>
+              ))}
+              {parseFloat(s?.tax_credits?.partnership_tax_credit || 0) > 0 && (
+                <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
+                  <span className="text-xs text-brand-gray">Partnership Tax Credit</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency(s.tax_credits.partnership_tax_credit)})</span>
+                </div>
+              )}
+              {parseFloat(s?.foreign_income?.foreign_tax_paid || 0) > 0 && (
+                <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
+                  <span className="text-xs text-brand-gray">Foreign Tax Paid</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency(s.foreign_income.foreign_tax_paid)})</span>
+                </div>
+              )}
+              <EditableAmount label="Less: Total Tax Credits" value={val('total_tax_credits')} fieldKey="total_tax_credits" onSave={handleFieldUpdate} indent />
               <div className="mt-4 bg-brand-yellow/10 border border-brand-yellow/30 rounded-xl p-4">
                 <p className="text-xs text-brand-gray uppercase tracking-wider mb-2">BALANCE TAX PAYABLE</p>
                 <EditableAmount label="" value={val('net_tax_payable')} fieldKey="net_tax_payable" onSave={handleFieldUpdate} />
