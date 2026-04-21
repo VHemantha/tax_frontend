@@ -51,9 +51,12 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
 
   const [saving, setSaving] = useState(false)
 
-  const { register: regIncome, handleSubmit: handleIncome, reset: resetIncome } = useForm()
+  const { register: regIncome, handleSubmit: handleIncome, reset: resetIncome, watch: watchIncome } = useForm()
   const { register: regQP, handleSubmit: handleQP, reset: resetQP } = useForm()
   const { register: regTC, handleSubmit: handleTC, reset: resetTC } = useForm()
+
+  const watchedRentGross = watchIncome('rent_gross')
+  const liveRentRelief = Math.round(parseFloat(watchedRentGross || 0) * 0.25 * 100) / 100
 
   useEffect(() => {
     const d = queries
@@ -213,10 +216,16 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
           <div>
             <h4 className="text-sm font-semibold text-brand-yellow mb-3 uppercase tracking-wider">Rent Income</h4>
             <label className="input-label">Gross Amount</label>
-            <div className="relative mb-2">
+            <div className="relative mb-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray text-sm font-mono">Rs.</span>
               <input {...regIncome('rent_gross')} type="number" step="0.01" min="0" className="input-field pl-10 text-right font-mono" placeholder="0.00" disabled={isReadOnly} />
             </div>
+            {liveRentRelief > 0 && (
+              <div className="flex justify-between items-center px-2 py-1 mb-2 bg-brand-success/5 border border-brand-success/20 rounded-lg">
+                <span className="text-xs text-brand-success">Rent Relief (25% auto)</span>
+                <span className="text-xs font-mono font-semibold text-brand-success">Rs. {liveRentRelief.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+            )}
             <label className="input-label">WHT Deducted</label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray text-sm font-mono">Rs.</span>
@@ -358,8 +367,12 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
               <span className="font-mono font-semibold text-brand-yellow">Rs. 1,800,000.00</span>
             </div>
             <div className="flex justify-between items-center mt-2">
-              <span className="text-sm text-brand-gray">Rent Relief <span className="text-xs">(25% of Gross Rent — auto calculated)</span></span>
-              <span className="font-mono text-white">Calculated</span>
+              <span className="text-sm text-brand-gray">Rent Relief <span className="text-xs">(25% of Gross Rent — auto)</span></span>
+              <span className="font-mono text-brand-success">
+                {liveRentRelief > 0
+                  ? `Rs. ${liveRentRelief.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : '—'}
+              </span>
             </div>
           </div>
         </div>

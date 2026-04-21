@@ -536,6 +536,8 @@ export default function TaxCalculation() {
   // val: pendingUpdates > stored submission > live calculation (Change 5 — TAI fix)
   const val = k => pendingUpdates[k] ?? s?.[k] ?? liveCalc?.[k]
   const liveVal = k => liveCalc?.[k] ?? s?.[k]
+  // Frontend-computed rent relief: 25% of gross rent — instant, no API needed
+  const computedRentRelief = (parseFloat(s?.rent_income?.gross_amount || 0) * 0.25).toFixed(2)
 
   // Doc grouping
   const docsBySection = documents.reduce((acc, doc) => {
@@ -795,6 +797,10 @@ export default function TaxCalculation() {
                   <SubHeading>Rent Income</SubHeading>
                   <AmountRow label="Gross Rent" value={s.rent_income.gross_amount} />
                   <AmountRow label="WHT Deducted" value={s.rent_income.wht_deducted} sub />
+                  <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border">
+                    <span className="text-sm text-brand-success">Rent Relief (25% auto)</span>
+                    <span className="font-mono text-sm text-brand-success">{formatCurrency(computedRentRelief)}</span>
+                  </div>
                   {canEdit && (editingSection === 'rent_income' ? (
                     <SectionEditForm fields={SECTION_FIELDS.rent_income.fields} data={s.rent_income}
                       onSave={d => saveSection('rent_income', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
@@ -1284,7 +1290,7 @@ export default function TaxCalculation() {
               )}
               <EditableAmount label="Less: Qualifying Pmts" value={val('total_qualifying_payments')} fieldKey="total_qualifying_payments" onSave={handleFieldUpdate} indent />
               <EditableAmount label="Less: Personal Relief" value={val('personal_relief')} fieldKey="personal_relief" onSave={handleFieldUpdate} indent />
-              <EditableAmount label="Less: Rent Relief (25%)" value={liveVal('rent_relief')} fieldKey="rent_relief" onSave={handleFieldUpdate} indent />
+              <EditableAmount label="Less: Rent Relief (25%)" value={liveVal('rent_relief') ?? computedRentRelief} fieldKey="rent_relief" onSave={handleFieldUpdate} indent />
               {/* Change 19: renamed from Net Taxable Income → Taxable Income */}
               <EditableAmount label="Taxable Income" value={liveVal('net_taxable_income')} fieldKey="net_taxable_income" onSave={handleFieldUpdate} highlight />
               <div className="h-px bg-brand-gray-border my-3" />
