@@ -9,7 +9,7 @@ import {
   ArrowLeft, Calculator, Send, FileText, Eye, Download,
   CheckCircle, AlertCircle, Pencil, Save, X, ChevronDown, ChevronRight,
   User, DollarSign, Home, Banknote, TrendingUp, Trash2, Plus,
-  History
+  History, Upload, Archive
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -344,6 +344,9 @@ export default function TaxCalculation() {
   const [editingSection, setEditingSection] = useState(null)
   const [sectionSaving, setSectionSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'log'
+  const [archiveModal, setArchiveModal] = useState(false)
+  const [archiveFile, setArchiveFile] = useState(null)
+  const [archiveDesc, setArchiveDesc] = useState('')
 
   const { data: submission, isLoading } = useQuery({
     queryKey: ['submission', submissionId],
@@ -397,14 +400,30 @@ export default function TaxCalculation() {
   })
 
   const archiveSubmission = useMutation({
-    mutationFn: () => api.post(`/tax/submissions/${submissionId}/archive/`),
+    mutationFn: (formData) => api.post(`/tax/submissions/${submissionId}/archive/`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
     onSuccess: () => {
       toast.success('Submission archived. Client has been notified.')
+      setArchiveModal(false)
+      setArchiveFile(null)
+      setArchiveDesc('')
       qc.invalidateQueries(['submission', submissionId])
       navigate(-1)
     },
     onError: err => toast.error(err.response?.data?.error || 'Failed to archive'),
   })
+
+  function handleArchiveSubmit() {
+    if (!archiveFile) {
+      toast.error('Please select a document to upload before archiving.')
+      return
+    }
+    const fd = new FormData()
+    fd.append('file', archiveFile)
+    if (archiveDesc.trim()) fd.append('description', archiveDesc.trim())
+    archiveSubmission.mutate(fd)
+  }
 
   function handleFieldUpdate(field, value) {
     setPendingUpdates(prev => ({ ...prev, [field]: value }))
@@ -518,6 +537,7 @@ export default function TaxCalculation() {
   const actionIcon = { update: Pencil, add: Plus, delete: Trash2 }
 
   return (
+    <>
     <div className="animate-fade-in">
       <button onClick={() => navigate(-1)} className="btn-ghost mb-4 text-sm">
         <ArrowLeft size={15} /> Back
@@ -570,14 +590,10 @@ export default function TaxCalculation() {
             )}
             {canArchive && (
               <button
-                onClick={() => archiveSubmission.mutate()}
-                disabled={archiveSubmission.isPending}
+                onClick={() => setArchiveModal(true)}
                 className="btn-primary bg-brand-success border-brand-success hover:opacity-90"
               >
-                {archiveSubmission.isPending
-                  ? <><span className="w-4 h-4 border-2 border-brand-black border-t-transparent rounded-full animate-spin" />Archiving...</>
-                  : <><CheckCircle size={14} /> Mark Complete &amp; Archive</>
-                }
+                <Archive size={14} /> Mark Complete &amp; Archive
               </button>
             )}
           </div>
@@ -1242,5 +1258,82 @@ export default function TaxCalculation() {
         </div>
       )}
     </div>
+
+      {/* ── Archive Modal ── */}
+      {archiveModal && (
+        <div
+          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
+          onClick={e => { if (e.target === e.currentTarget) setArchiveModal(false) }}
+        >
+          <div className="bg-brand-black-light border border-brand-gray-border rounded-2xl w-full max-w-md shadow-2xl animate-slide-up">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-brand-gray-border">
+              <div className="flex items-center gap-2">
+                <Archive size={17} className="text-brand-success" />
+                <h3 className="text-base font-semibold text-white">Complete &amp; Archive</h3>
+              </div>
+              <button onClick={() => setArchiveModal(false)} className="text-brand-gray hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-brand-gray">
+                Upload the final tax submission document before archiving. This document will be stored in the client's archive folder.
+              </p>
+
+              <div>
+                <label className="input-label">Final Document <span className="text-brand-red">*</span></label>
+                <label className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors ${archiveFile ? 'border-brand-success/60 bg-brand-success/5' : 'border-brand-gray-border hover:border-brand-yellow/50'}`}>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    onChange={e => setArchiveFile(e.target.files[0] || null)}
+                  />
+                  {archiveFile ? (
+                    <>
+                      <CheckCircle size={24} className="text-brand-success" />
+                      <p className="text-sm font-medium text-white text-center">{archiveFile.name}</p>
+                      <p className="text-xs text-brand-gray">{(archiveFile.size / 1024).toFixed(1)} KB · Click to change</p>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={24} className="text-brand-gray" />
+                      <p className="text-sm text-brand-gray">Click to select file</p>
+                      <p className="text-xs text-brand-gray">PDF, DOC, DOCX, JPG, PNG</p>
+                    </>
+                  )}
+                </label>
+              </div>
+
+              <div>
+                <label className="input-label">Description <span className="text-brand-gray text-xs">(optional)</span></label>
+                <input
+                  type="text"
+                  value={archiveDesc}
+                  onChange={e => setArchiveDesc(e.target.value)}
+                  placeholder="e.g. Final IRD submission copy"
+                  className="input-field text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end px-6 pb-5">
+              <button onClick={() => setArchiveModal(false)} className="btn-secondary">Cancel</button>
+              <button
+                onClick={handleArchiveSubmit}
+                disabled={!archiveFile || archiveSubmission.isPending}
+                className="btn-primary bg-brand-success border-brand-success hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {archiveSubmission.isPending
+                  ? <><span className="w-4 h-4 border-2 border-brand-black border-t-transparent rounded-full animate-spin" />Archiving...</>
+                  : <><Archive size={14} /> Confirm &amp; Archive</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

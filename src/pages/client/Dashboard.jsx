@@ -314,7 +314,7 @@ export default function ClientDashboard() {
         </div>
       )}
 
-      {/* Previous Year Access Requests (Change 13) */}
+      {/* Previous Assessment Years */}
       {taxYears.filter(y => !y.is_active).length > 0 && (
         <div className="mt-6">
           <h2 className="section-header mb-3"><Lock size={15} className="text-brand-gray" />Previous Assessment Years</h2>
@@ -322,22 +322,27 @@ export default function ClientDashboard() {
             {taxYears.filter(y => !y.is_active).map(ty => {
               const existing = submissions.find(s => s.tax_year === ty.id)
               const accessStatus = getAccessStatus(ty.id)
+              const isApproved = accessStatus === 'approved'
 
               return (
                 <div key={ty.id} className="card border border-brand-gray-border relative overflow-hidden">
+
+                  {/* Locked — no request yet */}
                   {!existing && !accessStatus && (
                     <div className="absolute inset-0 bg-brand-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center z-10">
                       <Lock size={20} className="text-brand-gray mb-2" />
                       <p className="text-xs text-brand-gray text-center mb-3 px-4">You don't have access to this year's data</p>
                       <button
                         onClick={() => requestAccess.mutate(ty.id)}
-                        disabled={requestAccess.isLoading}
+                        disabled={requestAccess.isPending}
                         className="btn-primary text-xs py-1.5 px-4"
                       >
                         Request Access
                       </button>
                     </div>
                   )}
+
+                  {/* Pending approval */}
                   {!existing && accessStatus === 'pending' && (
                     <div className="absolute inset-0 bg-brand-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center z-10">
                       <Clock size={20} className="text-brand-yellow mb-2" />
@@ -345,6 +350,8 @@ export default function ClientDashboard() {
                       <p className="text-xs text-brand-gray mt-1 text-center px-4">Your access request is being reviewed</p>
                     </div>
                   )}
+
+                  {/* Denied */}
                   {!existing && accessStatus === 'denied' && (
                     <div className="absolute inset-0 bg-brand-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center z-10">
                       <AlertCircle size={20} className="text-brand-red mb-2" />
@@ -357,17 +364,54 @@ export default function ClientDashboard() {
                       </button>
                     </div>
                   )}
+
+                  {/* Card content */}
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-sm font-semibold text-white">{ty.label}</p>
-                    {existing ? <Unlock size={14} className="text-brand-success" /> : <Lock size={14} className="text-brand-gray" />}
+                    {(existing || isApproved)
+                      ? <Unlock size={14} className="text-brand-success" />
+                      : <Lock size={14} className="text-brand-gray" />
+                    }
                   </div>
+
                   {existing ? (
+                    /* Submission exists — show status and action */
                     <>
-                      <p className="text-xs text-brand-gray mb-1">Status: <span className="text-white">{STATUS_LABELS[existing.status] || existing.status}</span></p>
-                      {existing.net_tax_payable && (
-                        <p className="text-xs text-brand-gray">Tax Paid: <span className="font-mono text-brand-yellow">{formatCurrency(existing.net_tax_payable)}</span></p>
+                      <div className="flex items-center justify-between mb-2">
+                        <StatusBadge status={existing.status} />
+                        {['draft', 'info_requested'].includes(existing.status) && (
+                          <button
+                            onClick={() => navigate(`/client/tax-form/${existing.id}`)}
+                            className="btn-primary text-xs py-1 px-3"
+                          >
+                            Continue <ArrowRight size={11} />
+                          </button>
+                        )}
+                        {existing.status === 'awaiting_client_review' && (
+                          <button
+                            onClick={() => navigate(`/client/confirm/${existing.id}`)}
+                            className="btn-primary text-xs py-1 px-3"
+                          >
+                            Review <ChevronRight size={11} />
+                          </button>
+                        )}
+                      </div>
+                      {!['awaiting_confirmation', 'confirmed'].includes(existing.status) && parseFloat(existing.net_tax_payable) > 0 && (
+                        <p className="text-xs text-brand-gray">Net Tax: <span className="font-mono text-brand-yellow">{formatCurrency(existing.net_tax_payable)}</span></p>
                       )}
                     </>
+                  ) : isApproved ? (
+                    /* Approved but no submission yet — let client start */
+                    <div className="mt-1">
+                      <p className="text-xs text-brand-success mb-2">Access approved — start your submission</p>
+                      <button
+                        onClick={() => createSubmission.mutate(ty.id)}
+                        disabled={createSubmission.isPending}
+                        className="btn-primary text-xs py-1.5 w-full justify-center"
+                      >
+                        <Plus size={12} /> Start Tax Form
+                      </button>
+                    </div>
                   ) : (
                     <p className="text-xs text-brand-gray">No submission for this year</p>
                   )}

@@ -64,53 +64,11 @@ export default function ClientDetail() {
           title={client?.full_name || 'Client'}
           subtitle={client?.email}
           actions={
-            <div className="flex gap-2">
-              {latestSubmission && ['submitted', 'under_review'].includes(latestSubmission.status) && (
-                <button onClick={() => setInfoModal(true)} className="btn-secondary">
-                  <MessageSquare size={15} /> Request Info
-                </button>
-              )}
-              {latestSubmission && ['submitted', 'under_review', 'info_requested'].includes(latestSubmission.status) && (
-                <button
-                  onClick={() => navigate(`/consultant/submissions/${latestSubmission.id}/calculate`)}
-                  className="btn-primary"
-                >
-                  <Calculator size={15} /> Calculate Tax
-                </button>
-              )}
-              {latestSubmission?.status === 'confirmed' && latestSubmission?.payment_status === 'paid' && (
-                <button
-                  onClick={() => navigate(`/consultant/submissions/${latestSubmission.id}/calculate`)}
-                  className="btn-primary bg-brand-success border-brand-success hover:opacity-90"
-                >
-                  <Send size={15} /> Send Tax Form to Client
-                </button>
-              )}
-              {latestSubmission?.status === 'confirmed' && latestSubmission?.payment_status !== 'paid' && (
-                <button
-                  onClick={() => navigate(`/consultant/submissions/${latestSubmission.id}/calculate`)}
-                  className="btn-secondary border-orange-500/50 text-orange-400"
-                >
-                  <Eye size={15} /> Awaiting Payment
-                </button>
-              )}
-              {latestSubmission?.status === 'awaiting_client_review' && (
-                <button
-                  onClick={() => navigate(`/consultant/submissions/${latestSubmission.id}/calculate`)}
-                  className="btn-secondary border-blue-400/50 text-blue-400"
-                >
-                  <Eye size={15} /> Awaiting Client Review
-                </button>
-              )}
-              {latestSubmission?.status === 'client_confirmed' && (
-                <button
-                  onClick={() => navigate(`/consultant/submissions/${latestSubmission.id}/calculate`)}
-                  className="btn-primary bg-brand-success border-brand-success hover:opacity-90"
-                >
-                  <Archive size={15} /> Mark Complete &amp; Archive
-                </button>
-              )}
-            </div>
+            latestSubmission && ['submitted', 'under_review'].includes(latestSubmission.status) ? (
+              <button onClick={() => setInfoModal(true)} className="btn-secondary">
+                <MessageSquare size={15} /> Request Info
+              </button>
+            ) : null
           }
         />
       </div>
@@ -154,10 +112,35 @@ export default function ClientDetail() {
                     <h4 className="font-semibold text-white">{sub.tax_year_label}</h4>
                     <StatusBadge status={sub.status} />
                   </div>
-                  <div className="flex gap-2">
-                    {['calculation_done', 'awaiting_confirmation', 'confirmed', 'archived'].includes(sub.status) && (
+                  <div className="flex gap-2 flex-wrap justify-end">
+                    {['calculation_done', 'awaiting_confirmation', 'confirmed', 'archived',
+                      'awaiting_client_review', 'client_confirmed'].includes(sub.status) && (
                       <button onClick={() => downloadPDF(sub.id)} className="btn-secondary text-xs px-3 py-1.5">
                         <Download size={13} /> PDF
+                      </button>
+                    )}
+                    {['submitted', 'under_review', 'info_requested'].includes(sub.status) && (
+                      <button
+                        onClick={() => navigate(`/consultant/submissions/${sub.id}/calculate`)}
+                        className="btn-primary text-xs px-3 py-1.5"
+                      >
+                        <Calculator size={13} /> Calculate Tax
+                      </button>
+                    )}
+                    {sub.status === 'confirmed' && sub.payment_status === 'paid' && (
+                      <button
+                        onClick={() => navigate(`/consultant/submissions/${sub.id}/calculate`)}
+                        className="btn-primary text-xs px-3 py-1.5 bg-brand-success border-brand-success"
+                      >
+                        <Send size={13} /> Send to Client
+                      </button>
+                    )}
+                    {sub.status === 'client_confirmed' && (
+                      <button
+                        onClick={() => navigate(`/consultant/submissions/${sub.id}/calculate`)}
+                        className="btn-primary text-xs px-3 py-1.5 bg-brand-success border-brand-success"
+                      >
+                        <Archive size={13} /> Archive
                       </button>
                     )}
                     <button
