@@ -252,7 +252,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
         {/* Document uploads for rent/interest/dividend */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <FileUpload label="Rent Agreement / WHT Certificates" documentType="rent_agreement" section="income" {...fileProps} />
-          <FileUpload label="Bank Balance Confirmations (31.03.2026)" documentType="bank_balance_confirmation" section="income" {...fileProps} />
+          <FileUpload label="WHT Certificates" documentType="bank_balance_confirmation" section="income" {...fileProps} />
           <FileUpload label="Dividend Certificates (Dividend Warrant)" documentType="dividend_certificate" section="income" {...fileProps} />
         </div>
 
