@@ -69,6 +69,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
       interest_amount: d.interest.data?.amount || '',
       interest_wht: d.interest.data?.wht_deducted || '',
       dividend_amount: d.dividend.data?.amount || '',
+      dividend_exempt_amount: d.dividend.data?.exempt_amount || '',
       sole_amount: d.sole.data?.amount || '',
       sole_business_name: d.sole.data?.business_name || '',
       other_amount: d.other.data?.amount || '',
@@ -101,7 +102,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
         api.post(`/tax/submissions/${submissionId}/income/terminal-benefit/`, { amount: data.terminal_amount || 0, benefit_types: data.terminal_benefit_types }),
         api.post(`/tax/submissions/${submissionId}/income/rent/`, { gross_amount: data.rent_gross || 0, wht_deducted: data.rent_wht || 0 }),
         api.post(`/tax/submissions/${submissionId}/income/interest/`, { amount: data.interest_amount || 0, wht_deducted: data.interest_wht || 0 }),
-        api.post(`/tax/submissions/${submissionId}/income/dividend/`, { amount: data.dividend_amount || 0 }),
+        api.post(`/tax/submissions/${submissionId}/income/dividend/`, { amount: data.dividend_amount || 0, exempt_amount: data.dividend_exempt_amount || 0 }),
         api.post(`/tax/submissions/${submissionId}/income/sole-proprietorship/`, { amount: data.sole_amount || 0, business_name: data.sole_business_name }),
         api.post(`/tax/submissions/${submissionId}/income/other/`, { amount: data.other_amount || 0, description: data.other_description }),
       ])
@@ -241,10 +242,18 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
           {/* Dividend */}
           <div>
             <h4 className="text-sm font-semibold text-brand-yellow mb-3 uppercase tracking-wider">Dividend Income</h4>
-            <label className="input-label">Amount</label>
-            <div className="relative">
+            <label className="input-label">Taxable Dividends</label>
+            <div className="relative mb-3">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray text-sm font-mono">Rs.</span>
               <input {...regIncome('dividend_amount')} type="number" step="0.01" min="0" className="input-field pl-10 text-right font-mono" placeholder="0.00" disabled={isReadOnly} />
+            </div>
+            <label className="input-label">
+              Exempt Dividends
+              <span className="block text-xs text-brand-gray font-normal normal-case tracking-normal mt-0.5">From resident companies subject to 15% WHT — tax exempt</span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray text-sm font-mono">Rs.</span>
+              <input {...regIncome('dividend_exempt_amount')} type="number" step="0.01" min="0" className="input-field pl-10 text-right font-mono border-brand-success/40 focus:border-brand-success" placeholder="0.00" disabled={isReadOnly} />
             </div>
           </div>
         </div>

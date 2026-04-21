@@ -263,7 +263,8 @@ const SECTION_FIELDS = {
     endpoint: id => `/tax/submissions/${id}/income/dividend/`,
     label: 'Dividend Income',
     fields: [
-      { key: 'amount', label: 'Dividend Income (Rs.)', type: 'number' },
+      { key: 'amount', label: 'Taxable Dividends (Rs.)', type: 'number' },
+      { key: 'exempt_amount', label: 'Exempt Dividends — Resident Co. 15% WHT (Rs.)', type: 'number' },
       { key: 'notes', label: 'Notes', type: 'textarea' },
     ],
   },
@@ -819,10 +820,16 @@ export default function TaxCalculation() {
               )}
 
               {/* Dividend Income */}
-              {s?.dividend_income?.amount > 0 && (
+              {(s?.dividend_income?.amount > 0 || s?.dividend_income?.exempt_amount > 0) && (
                 <>
                   <SubHeading>Dividend Income</SubHeading>
-                  <AmountRow label="Dividend" value={s.dividend_income.amount} />
+                  <AmountRow label="Taxable Dividends" value={s.dividend_income.amount} />
+                  {parseFloat(s.dividend_income.exempt_amount || 0) > 0 && (
+                    <div className="flex justify-between items-center py-2 border-b border-brand-gray-border pl-4">
+                      <span className="text-sm text-brand-success">Exempt Dividends (15% WHT)</span>
+                      <span className="font-mono text-sm text-brand-success">{formatCurrency(s.dividend_income.exempt_amount)}</span>
+                    </div>
+                  )}
                   {canEdit && (editingSection === 'dividend_income' ? (
                     <SectionEditForm fields={SECTION_FIELDS.dividend_income.fields} data={s.dividend_income}
                       onSave={d => saveSection('dividend_income', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
