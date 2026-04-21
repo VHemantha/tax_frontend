@@ -299,7 +299,6 @@ const SECTION_FIELDS = {
     label: 'Tax Credits',
     fields: [
       { key: 'apit_on_salary', label: 'APIT on Salary (Rs.)', type: 'number' },
-      { key: 'wht_rent_interest_service', label: 'WHT (Rent/Interest/Service) (Rs.)', type: 'number' },
       { key: 'partnership_tax_credit', label: 'Partnership Tax Credit (Rs.)', type: 'number' },
       { key: 'notes', label: 'Notes', type: 'textarea' },
     ],
@@ -347,6 +346,8 @@ export default function TaxCalculation() {
   const [archiveModal, setArchiveModal] = useState(false)
   const [archiveFile, setArchiveFile] = useState(null)
   const [archiveDesc, setArchiveDesc] = useState('')
+  const [whtAddOpen, setWhtAddOpen] = useState(false)
+  const [whtDraft, setWhtDraft] = useState({ category: 'rent', amount: '', notes: '' })
 
   const { data: submission, isLoading } = useQuery({
     queryKey: ['submission', submissionId],
@@ -412,6 +413,26 @@ export default function TaxCalculation() {
       navigate(-1)
     },
     onError: err => toast.error(err.response?.data?.error || 'Failed to archive'),
+  })
+
+  const addWHTCert = useMutation({
+    mutationFn: (data) => api.post(`/tax/submissions/${submissionId}/wht-certificates/`, data),
+    onSuccess: () => {
+      toast.success('WHT entry added')
+      setWhtAddOpen(false)
+      setWhtDraft({ category: 'rent', amount: '', notes: '' })
+      qc.invalidateQueries(['submission', submissionId])
+    },
+    onError: () => toast.error('Failed to add WHT entry'),
+  })
+
+  const deleteWHTCert = useMutation({
+    mutationFn: (certId) => api.delete(`/tax/wht-certificates/${certId}/`),
+    onSuccess: () => {
+      toast.success('WHT entry removed')
+      qc.invalidateQueries(['submission', submissionId])
+    },
+    onError: () => toast.error('Failed to remove WHT entry'),
   })
 
   function handleArchiveSubmit() {
@@ -882,10 +903,111 @@ export default function TaxCalculation() {
                 {s?.tax_credits ? (
                   <>
                     <AmountRow label="APIT on Salary" value={s.tax_credits.apit_on_salary} />
-                    <AmountRow label="WHT (Rent/Interest/Service)" value={s.tax_credits.wht_rent_interest_service} />
                     <AmountRow label="Partnership Tax Credit" value={s.tax_credits.partnership_tax_credit} />
                   </>
                 ) : <p className="text-xs text-brand-gray text-center">No tax credits entered</p>}
+                {editingSection === 'tax_credits' && (
+                  <SectionEditForm fields={SECTION_FIELDS.tax_credits.fields} data={s?.tax_credits}
+                    onSave={d => saveSection('tax_credits', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
+                )}
+
+                {/* ── WHT Certificates ── */}
+                <SubHeading>WHT Credits by Income Category</SubHeading>
+                {(s?.wht_certificates || []).length > 0 ? (
+                  <div className="overflow-x-auto rounded-lg border border-brand-gray-border mb-2">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-brand-black">
+                          <th className="table-header py-2 text-left text-xs">Category</th>
+                          <th className="table-header py-2 text-right text-xs">Amount (Rs.)</th>
+                          {canEdit && <th className="table-header py-2 w-8" />}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(s.wht_certificates).map(cert => (
+                          <tr key={cert.id} className="table-row">
+                            <td className="table-cell py-2 text-xs">{cert.category_display}</td>
+                            <td className="table-cell py-2 text-right font-mono text-xs">{formatCurrency(cert.amount)}</td>
+                            {canEdit && (
+                              <td className="table-cell py-2 text-center">
+                                <button onClick={() => deleteWHTCert.mutate(cert.id)}
+                                  className="text-brand-gray hover:text-brand-red" title="Remove">
+                                  <Trash2 size={11} />
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                        <tr className="bg-brand-black">
+                          <td className="table-cell py-2 text-xs font-semibold text-white">Total WHT</td>
+                          <td className="table-cell py-2 text-right font-mono text-xs font-semibold text-white">
+                            {formatCurrency(s.tax_credits?.wht_rent_interest_service || 0)}
+                          </td>
+                          {canEdit && <td />}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-xs text-brand-gray text-center py-2">No WHT entries added</p>
+                )}
+
+                {/* Add WHT entry form */}
+                {canEdit && !whtAddOpen && (
+                  <button onClick={() => setWhtAddOpen(true)} className="btn-ghost text-xs w-full mb-2">
+                    <Plus size={12} /> Add WHT Entry
+                  </button>
+                )}
+                {canEdit && whtAddOpen && (
+                  <div className="bg-brand-black-soft rounded-xl p-3 border border-brand-yellow/20 mb-2">
+                    <p className="text-xs text-brand-yellow font-semibold mb-2">New WHT Entry</p>
+                    <div className="grid grid-cols-1 gap-2 mb-3">
+                      <div>
+                        <label className="text-xs text-brand-gray mb-1 block">Income Category</label>
+                        <select
+                          value={whtDraft.category}
+                          onChange={e => setWhtDraft(p => ({ ...p, category: e.target.value }))}
+                          className="input-field text-sm"
+                        >
+                          <option value="rent">Rent</option>
+                          <option value="interest">Interest</option>
+                          <option value="service_fees">Service Fees</option>
+                          <option value="employment">Employment (APIT)</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-brand-gray mb-1 block">Amount (Rs.)</label>
+                        <input type="number" step="0.01" min="0"
+                          value={whtDraft.amount}
+                          onChange={e => setWhtDraft(p => ({ ...p, amount: e.target.value }))}
+                          className="input-field text-sm"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-brand-gray mb-1 block">Notes (optional)</label>
+                        <input type="text"
+                          value={whtDraft.notes}
+                          onChange={e => setWhtDraft(p => ({ ...p, notes: e.target.value }))}
+                          className="input-field text-sm"
+                          placeholder="e.g. Bank certificate ref no."
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => addWHTCert.mutate({ category: whtDraft.category, amount: whtDraft.amount, notes: whtDraft.notes })}
+                        disabled={!whtDraft.amount || addWHTCert.isPending}
+                        className="btn-primary text-xs py-1.5 px-3"
+                      >
+                        <Save size={12} /> {addWHTCert.isPending ? 'Saving…' : 'Add Entry'}
+                      </button>
+                      <button onClick={() => setWhtAddOpen(false)} className="btn-secondary text-xs py-1.5 px-3">Cancel</button>
+                    </div>
+                  </div>
+                )}
+
                 {s?.self_assessment_payments?.length > 0 && (
                   <>
                     <SubHeading>Self-Assessment Installments</SubHeading>
@@ -898,10 +1020,6 @@ export default function TaxCalculation() {
                       </div>
                     ))}
                   </>
-                )}
-                {editingSection === 'tax_credits' && (
-                  <SectionEditForm fields={SECTION_FIELDS.tax_credits.fields} data={s?.tax_credits}
-                    onSave={d => saveSection('tax_credits', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
                 )}
                 <div className="mt-2">
                   <AmountRow label="Total Tax Credits" value={s?.total_tax_credits} highlight />
