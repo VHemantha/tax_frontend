@@ -1,331 +1,396 @@
-import { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useState, useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../../services/api'
-import { ChevronRight, ChevronLeft, Plus, Trash2, Save, Building2 } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Plus, Trash2, Pencil, X, Save, LayoutList } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-function TableSection({ title, columns, rows, onAdd, onDelete, isReadOnly, renderRow, emptyLabel }) {
-  return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-semibold text-brand-yellow uppercase tracking-wider">{title}</h4>
-        {!isReadOnly && (
-          <button type="button" onClick={onAdd} className="btn-secondary text-xs px-3 py-1.5">
-            <Plus size={13} /> Add Row
-          </button>
-        )}
-      </div>
-      <div className="overflow-x-auto rounded-lg border border-brand-gray-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-brand-black">
-              {columns.map(c => (
-                <th key={c} className="table-header text-left whitespace-nowrap">{c}</th>
-              ))}
-              {!isReadOnly && <th className="table-header w-10" />}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr><td colSpan={columns.length + 1} className="table-cell text-center text-brand-gray py-6">{emptyLabel || 'No entries'}</td></tr>
-            ) : (
-              rows.map((row, idx) => renderRow(row, idx, isReadOnly, onDelete))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
+const COLOR_MAP = {
+  blue:   'bg-blue-900/40 text-blue-300 border border-blue-700/50',
+  green:  'bg-green-900/40 text-green-300 border border-green-700/50',
+  purple: 'bg-purple-900/40 text-purple-300 border border-purple-700/50',
+  orange: 'bg-orange-900/40 text-orange-300 border border-orange-700/50',
+  yellow: 'bg-yellow-900/40 text-yellow-300 border border-yellow-700/50',
+  teal:   'bg-teal-900/40 text-teal-300 border border-teal-700/50',
+  amber:  'bg-amber-900/40 text-amber-300 border border-amber-700/50',
+  pink:   'bg-pink-900/40 text-pink-300 border border-pink-700/50',
+  slate:  'bg-slate-700/40 text-slate-300 border border-slate-600/50',
+  red:    'bg-red-900/40 text-red-300 border border-red-700/50',
+  rose:   'bg-rose-900/40 text-rose-300 border border-rose-700/50',
+}
+
+const CATEGORIES = [
+  {
+    key: 'immovable', label: 'Immovable Property', color: 'blue',
+    endpoint: 'immovable', queryKey: 'immovable',
+    getDescription: r => r.situation_of_property || '—',
+    getDetail: r => r.date_of_acquisition || '—',
+    getAmount: r => r.market_value,
+    defaults: { situation_of_property: '', cost: 0, market_value: 0 },
+    fields: [
+      { key: 'situation_of_property', label: 'Situation of Property', type: 'text' },
+      { key: 'date_of_acquisition', label: 'Date of Acquisition', type: 'date' },
+      { key: 'cost', label: 'Cost (Rs.)', type: 'number' },
+      { key: 'market_value', label: 'Market Value (Rs.)', type: 'number' },
+    ],
+  },
+  {
+    key: 'vehicles', label: 'Motor Vehicle', color: 'green',
+    endpoint: 'vehicles', queryKey: 'vehicles',
+    getDescription: r => r.description || '—',
+    getDetail: r => r.registration_no || '—',
+    getAmount: r => r.cost_market_value,
+    defaults: { description: '', registration_no: '', cost_market_value: 0 },
+    fields: [
+      { key: 'description', label: 'Description', type: 'text' },
+      { key: 'registration_no', label: 'Registration No.', type: 'text' },
+      { key: 'date_of_acquisition', label: 'Date of Acquisition', type: 'date' },
+      { key: 'cost_market_value', label: 'Cost / Market Value (Rs.)', type: 'number' },
+    ],
+  },
+  {
+    key: 'bank-balances', label: 'Bank Balance', color: 'purple',
+    endpoint: 'bank-balances', queryKey: 'bankBalances',
+    getDescription: r => r.bank_name || '—',
+    getDetail: r => r.account_no || '—',
+    getAmount: r => r.balance,
+    defaults: { bank_name: '', account_no: '', amount_invested: 0, interest: 0, balance: 0 },
+    fields: [
+      { key: 'bank_name', label: 'Bank / Institution', type: 'text' },
+      { key: 'account_no', label: 'Account No.', type: 'text' },
+      { key: 'amount_invested', label: 'Amount Invested (Rs.)', type: 'number' },
+      { key: 'interest', label: 'Interest (Rs.)', type: 'number' },
+      { key: 'balance', label: 'Balance (Rs.)', type: 'number' },
+    ],
+  },
+  {
+    key: 'shares', label: 'Shares / Stocks', color: 'orange',
+    endpoint: 'shares', queryKey: 'shares',
+    getDescription: r => r.description || '—',
+    getDetail: r => r.no_of_shares ? `${r.no_of_shares} shares` : '—',
+    getAmount: r => r.cost_market_value,
+    defaults: { description: '', no_of_shares: 0, cost_market_value: 0, net_dividend_income: 0 },
+    fields: [
+      { key: 'description', label: 'Description', type: 'text' },
+      { key: 'no_of_shares', label: 'No. of Shares', type: 'number' },
+      { key: 'date_of_acquisition', label: 'Date Acquired', type: 'date' },
+      { key: 'cost_market_value', label: 'Cost / Market Value (Rs.)', type: 'number' },
+      { key: 'net_dividend_income', label: 'Net Dividend Income (Rs.)', type: 'number' },
+    ],
+  },
+  {
+    key: 'cash', label: 'Cash in Hand', color: 'yellow',
+    endpoint: 'cash', queryKey: 'cash', isSingle: true,
+    getDescription: () => 'Cash in Hand',
+    getDetail: () => '—',
+    getAmount: r => r?.amount,
+    defaults: { amount: 0 },
+    fields: [
+      { key: 'amount', label: 'Amount (Rs.)', type: 'number' },
+    ],
+  },
+  {
+    key: 'loans-given', label: 'Loans Given', color: 'teal',
+    endpoint: 'loans-given', queryKey: 'loans',
+    getDescription: r => r.borrower_name || '—',
+    getDetail: () => '—',
+    getAmount: r => r.amount,
+    defaults: { borrower_name: '', amount: 0 },
+    fields: [
+      { key: 'borrower_name', label: 'Borrower Name', type: 'text' },
+      { key: 'amount', label: 'Amount (Rs.)', type: 'number' },
+    ],
+  },
+  {
+    key: 'gold', label: 'Gold / Jewellery', color: 'amber',
+    endpoint: 'gold', queryKey: 'gold', isSingle: true,
+    getDescription: r => r?.description || 'Gold / Silver / Gems / Jewellery',
+    getDetail: () => '—',
+    getAmount: r => r?.value,
+    defaults: { description: '', value: 0 },
+    fields: [
+      { key: 'description', label: 'Description of Items', type: 'text' },
+      { key: 'value', label: 'Estimated Value (Rs.)', type: 'number' },
+    ],
+  },
+  {
+    key: 'business', label: 'Business Properties', color: 'pink',
+    endpoint: 'business', queryKey: 'business',
+    getDescription: r => r.name_of_business || '—',
+    getDetail: () => '—',
+    getAmount: r => parseFloat(r.capital_account_balance || 0),
+    defaults: { name_of_business: '', current_account_balance: 0, capital_account_balance: 0 },
+    fields: [
+      { key: 'name_of_business', label: 'Name of Business', type: 'text' },
+      { key: 'current_account_balance', label: 'Current Account Balance (Rs.)', type: 'number' },
+      { key: 'capital_account_balance', label: 'Capital Account Balance (Rs.)', type: 'number' },
+    ],
+  },
+  {
+    key: 'other', label: 'Other Assets', color: 'slate',
+    endpoint: 'other', queryKey: 'otherAssets',
+    getDescription: r => r.description || '—',
+    getDetail: r => r.acquisition_type || '—',
+    getAmount: r => r.cost_value,
+    defaults: { description: '', acquisition_type: 'purchase', cost_value: 0 },
+    fields: [
+      { key: 'description', label: 'Description', type: 'text' },
+      {
+        key: 'acquisition_type', label: 'Acquisition Type', type: 'select',
+        options: [
+          { value: 'purchase', label: 'Purchase' },
+          { value: 'gift', label: 'Gift' },
+          { value: 'exchange', label: 'Exchange' },
+        ],
+      },
+      { key: 'date_of_acquisition', label: 'Date of Acquisition', type: 'date' },
+      { key: 'cost_value', label: 'Cost / Value (Rs.)', type: 'number' },
+    ],
+  },
+  {
+    key: 'disposals', label: 'Asset Disposals', color: 'red',
+    endpoint: 'disposals', queryKey: 'disposals',
+    getDescription: r => r.description || '—',
+    getDetail: r => r.date_of_disposal || '—',
+    getAmount: r => r.sales_proceed,
+    defaults: { description: '', sales_proceed: 0, cost: 0 },
+    fields: [
+      { key: 'description', label: 'Description', type: 'text' },
+      { key: 'date_of_disposal', label: 'Date of Disposal', type: 'date' },
+      { key: 'sales_proceed', label: 'Sales Proceed (Rs.)', type: 'number' },
+      { key: 'date_acquired', label: 'Date Acquired', type: 'date' },
+      { key: 'cost', label: 'Cost (Rs.)', type: 'number' },
+    ],
+  },
+]
+
+const CAT_MAP = Object.fromEntries(CATEGORIES.map(c => [c.key, c]))
+
+function fmt(v) {
+  const n = parseFloat(v || 0)
+  return isNaN(n) ? 'Rs. 0.00' : `Rs. ${n.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 export default function AssetsSection({ submissionId, isReadOnly, onNext, onPrev }) {
   const qc = useQueryClient()
 
-  const { data: immovable = [] } = useQuery({ queryKey: ['immovable', submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/immovable/`).then(r => r.data) })
-  const { data: vehicles = [] } = useQuery({ queryKey: ['vehicles', submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/vehicles/`).then(r => r.data) })
-  const { data: bankBalances = [] } = useQuery({ queryKey: ['bankBalances', submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/bank-balances/`).then(r => r.data) })
-  const { data: shares = [] } = useQuery({ queryKey: ['shares', submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/shares/`).then(r => r.data) })
-  const { data: cashInHand } = useQuery({ queryKey: ['cash', submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/cash/`).then(r => r.data) })
-  const { data: loans = [] } = useQuery({ queryKey: ['loans', submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/loans-given/`).then(r => r.data) })
-  const { data: gold } = useQuery({ queryKey: ['gold', submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/gold/`).then(r => r.data) })
-  const { data: business = [] } = useQuery({ queryKey: ['business', submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/business/`).then(r => r.data) })
+  const { data: immovable = [] }   = useQuery({ queryKey: ['immovable', submissionId],   queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/immovable/`).then(r => r.data) })
+  const { data: vehicles = [] }    = useQuery({ queryKey: ['vehicles', submissionId],    queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/vehicles/`).then(r => r.data) })
+  const { data: bankBalances = [] }= useQuery({ queryKey: ['bankBalances', submissionId],queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/bank-balances/`).then(r => r.data) })
+  const { data: shares = [] }      = useQuery({ queryKey: ['shares', submissionId],      queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/shares/`).then(r => r.data) })
+  const { data: cashInHand }       = useQuery({ queryKey: ['cash', submissionId],        queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/cash/`).then(r => r.data) })
+  const { data: loans = [] }       = useQuery({ queryKey: ['loans', submissionId],       queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/loans-given/`).then(r => r.data) })
+  const { data: gold }             = useQuery({ queryKey: ['gold', submissionId],        queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/gold/`).then(r => r.data) })
+  const { data: business = [] }    = useQuery({ queryKey: ['business', submissionId],    queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/business/`).then(r => r.data) })
   const { data: otherAssets = [] } = useQuery({ queryKey: ['otherAssets', submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/other/`).then(r => r.data) })
-  const { data: disposals = [] } = useQuery({ queryKey: ['disposals', submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/disposals/`).then(r => r.data) })
-
-  const [cashValue, setCashValue] = useState('')
-  const [goldValue, setGoldValue] = useState('')
-  const [goldDesc, setGoldDesc] = useState('')
+  const { data: disposals = [] }   = useQuery({ queryKey: ['disposals', submissionId],   queryFn: () => api.get(`/tax/submissions/${submissionId}/assets/disposals/`).then(r => r.data) })
+  const [filterCat, setFilterCat] = useState('all')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalCat, setModalCat] = useState('immovable')
+  const [formVals, setFormVals] = useState({})
+  const [editTarget, setEditTarget] = useState(null)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => { if (cashInHand?.amount !== undefined) setCashValue(cashInHand.amount) }, [cashInHand])
-  useEffect(() => {
-    if (gold?.value !== undefined) setGoldValue(gold.value)
-    if (gold?.description !== undefined) setGoldDesc(gold.description)
-  }, [gold])
+  const allRows = useMemo(() => {
+    const rows = []
 
-  async function addRow(endpoint, defaults, queryKey) {
-    try {
-      await api.post(`/tax/submissions/${submissionId}/assets/${endpoint}/`, defaults)
-      qc.invalidateQueries([queryKey || endpoint, submissionId])
-    } catch { toast.error('Failed to add row') }
+    const addList = (catKey, data) => {
+      const cat = CAT_MAP[catKey]
+      data.forEach(r => rows.push({
+        id: r.id, category: catKey, catDef: cat, isSingle: false,
+        description: cat.getDescription(r),
+        detail: cat.getDetail(r),
+        amount: cat.getAmount(r),
+        raw: r,
+      }))
+    }
+
+    addList('immovable', immovable)
+    addList('vehicles', vehicles)
+    addList('bank-balances', bankBalances)
+    addList('shares', shares)
+    addList('loans-given', loans)
+    addList('business', business)
+    addList('other', otherAssets)
+    addList('disposals', disposals)
+
+    const cashCat = CAT_MAP['cash']
+    rows.push({
+      id: 'cash-single', category: 'cash', catDef: cashCat, isSingle: true,
+      description: cashCat.getDescription(cashInHand),
+      detail: '—',
+      amount: cashInHand?.amount,
+      raw: cashInHand,
+    })
+
+    const goldCat = CAT_MAP['gold']
+    rows.push({
+      id: 'gold-single', category: 'gold', catDef: goldCat, isSingle: true,
+      description: goldCat.getDescription(gold),
+      detail: '—',
+      amount: gold?.value,
+      raw: gold,
+    })
+
+    return rows
+  }, [immovable, vehicles, bankBalances, shares, loans, business, otherAssets, disposals, cashInHand, gold])
+
+  const visibleRows = filterCat === 'all' ? allRows : allRows.filter(r => r.category === filterCat)
+
+  function openAddModal() {
+    const firstNonSingle = CATEGORIES.find(c => !c.isSingle)
+    const key = firstNonSingle?.key || 'immovable'
+    setModalCat(key)
+    setFormVals({ ...CAT_MAP[key].defaults })
+    setEditTarget(null)
+    setModalOpen(true)
   }
 
-  async function deleteRow(endpoint, id, queryKey) {
-    try {
-      await api.delete(`/tax/assets/${endpoint}/${id}/`)
-      qc.invalidateQueries([queryKey, submissionId])
-    } catch { toast.error('Failed to delete') }
+  function openEditModal(row) {
+    setModalCat(row.category)
+    setFormVals({ ...row.raw })
+    setEditTarget({ catKey: row.category, id: row.id, isSingle: row.isSingle })
+    setModalOpen(true)
   }
 
-  async function updateRow(endpoint, id, data, queryKey) {
-    try {
-      await api.patch(`/tax/assets/${endpoint}/${id}/`, data)
-      qc.invalidateQueries([queryKey, submissionId])
-    } catch { toast.error('Failed to update') }
+  function onCategoryChange(key) {
+    setModalCat(key)
+    if (!editTarget) {
+      setFormVals({ ...CAT_MAP[key].defaults })
+    }
   }
 
-  async function saveCashGold() {
+  async function handleSave() {
     setSaving(true)
     try {
-      await api.post(`/tax/submissions/${submissionId}/assets/cash/`, { amount: cashValue || 0 })
-      await api.post(`/tax/submissions/${submissionId}/assets/gold/`, { value: goldValue || 0, description: goldDesc })
-      toast.success('Saved')
-    } catch { toast.error('Failed') }
+      const cat = CAT_MAP[modalCat]
+
+      if (editTarget) {
+        if (cat.isSingle) {
+          await api.post(`/tax/submissions/${submissionId}/assets/${cat.endpoint}/`, formVals)
+        } else {
+          await api.patch(`/tax/assets/${cat.endpoint}/${editTarget.id}/`, formVals)
+        }
+        toast.success('Updated')
+      } else {
+        await api.post(`/tax/submissions/${submissionId}/assets/${cat.endpoint}/`, formVals)
+        toast.success(cat.isSingle ? 'Saved' : 'Added')
+      }
+
+      qc.invalidateQueries([cat.queryKey, submissionId])
+      setModalOpen(false)
+    } catch {
+      toast.error('Failed to save')
+    }
     setSaving(false)
   }
 
-  function EditableCell({ value, onChange, type = 'text', className = '' }) {
-    return (
-      <input
-        defaultValue={value}
-        type={type}
-        step={type === 'number' ? '0.01' : undefined}
-        onBlur={(e) => onChange(e.target.value)}
-        disabled={isReadOnly}
-        className={`bg-transparent border-0 text-white text-sm w-full focus:outline-none focus:bg-brand-black-soft rounded px-1 ${type === 'number' ? 'text-right font-mono' : ''} ${className}`}
-      />
-    )
+  async function handleDelete(row) {
+    if (row.isSingle) return
+    try {
+      await api.delete(`/tax/assets/${row.catDef.endpoint}/${row.id}/`)
+      qc.invalidateQueries([row.catDef.queryKey, submissionId])
+      toast.success('Deleted')
+    } catch {
+      toast.error('Failed to delete')
+    }
   }
+
+  const activeCat = CAT_MAP[modalCat]
 
   return (
     <div className="space-y-6">
       <div className="form-section">
         <h3 className="section-header">
-          <Building2 size={18} className="text-brand-yellow" />
-          Assets as at 31st March 2026
+          <LayoutList size={18} className="text-brand-yellow" />
+          Assets &amp; Liabilities as at 31st March 2026
         </h3>
+        <p className="text-sm text-brand-gray mb-5">
+          Record all properties, investments, bank accounts, vehicles, and liabilities. Select a category to filter the list.
+        </p>
 
-        {/* 1. Immovable Properties */}
-        <TableSection
-          title="1. Immovable Properties"
-          columns={['#', 'Situation of Property', 'Date of Acquisition', 'Cost (Rs.)', 'Market Value (Rs.)']}
-          rows={immovable}
-          isReadOnly={isReadOnly}
-          onAdd={() => addRow('immovable', { situation_of_property: '', cost: 0, market_value: 0 })}
-          emptyLabel="No immovable properties — click Add Row to enter"
-          renderRow={(row, idx, ro, onDel) => (
-            <tr key={row.id} className="table-row">
-              <td className="table-cell text-brand-gray w-8">{idx + 1}</td>
-              <td className="table-cell min-w-[200px]">
-                <EditableCell value={row.situation_of_property} onChange={(v) => !ro && updateRow('immovable', row.id, { situation_of_property: v }, 'immovable')} />
-              </td>
-              <td className="table-cell">
-                <EditableCell value={row.date_of_acquisition || ''} type="date" onChange={(v) => !ro && updateRow('immovable', row.id, { date_of_acquisition: v }, 'immovable')} />
-              </td>
-              <td className="table-cell">
-                <EditableCell value={row.cost} type="number" onChange={(v) => !ro && updateRow('immovable', row.id, { cost: v }, 'immovable')} />
-              </td>
-              <td className="table-cell">
-                <EditableCell value={row.market_value} type="number" onChange={(v) => !ro && updateRow('immovable', row.id, { market_value: v }, 'immovable')} />
-              </td>
-              {!ro && <td className="table-cell"><button onClick={() => onDel(row.id)} className="text-brand-red hover:opacity-80"><Trash2 size={14} /></button></td>}
-            </tr>
-          )}
-          onDelete={(id) => deleteRow('immovable', id, 'immovable')}
-        />
-
-        {/* 2. Motor Vehicles */}
-        <TableSection
-          title="2. Motor Vehicles"
-          columns={['#', 'Description', 'Reg. No.', 'Date of Acquisition', 'Cost/Market Value (Rs.)']}
-          rows={vehicles}
-          isReadOnly={isReadOnly}
-          onAdd={() => addRow('vehicles', { description: '', registration_no: '', cost_market_value: 0 })}
-          emptyLabel="No motor vehicles"
-          renderRow={(row, idx, ro, onDel) => (
-            <tr key={row.id} className="table-row">
-              <td className="table-cell text-brand-gray w-8">{idx + 1}</td>
-              <td className="table-cell"><EditableCell value={row.description} onChange={(v) => !ro && updateRow('vehicles', row.id, { description: v }, 'vehicles')} /></td>
-              <td className="table-cell"><EditableCell value={row.registration_no} onChange={(v) => !ro && updateRow('vehicles', row.id, { registration_no: v }, 'vehicles')} /></td>
-              <td className="table-cell"><EditableCell value={row.date_of_acquisition || ''} type="date" onChange={(v) => !ro && updateRow('vehicles', row.id, { date_of_acquisition: v }, 'vehicles')} /></td>
-              <td className="table-cell"><EditableCell value={row.cost_market_value} type="number" onChange={(v) => !ro && updateRow('vehicles', row.id, { cost_market_value: v }, 'vehicles')} /></td>
-              {!ro && <td className="table-cell"><button onClick={() => onDel(row.id)} className="text-brand-red hover:opacity-80"><Trash2 size={14} /></button></td>}
-            </tr>
-          )}
-          onDelete={(id) => deleteRow('vehicles', id, 'vehicles')}
-        />
-
-        {/* 3. Bank Balances */}
-        <TableSection
-          title="3. Bank Balances (incl. Term Deposits) as at 31.03.2026"
-          columns={['#', 'Bank/Institution', 'Account No.', 'Amount Invested', 'Interest', 'Balance']}
-          rows={bankBalances}
-          isReadOnly={isReadOnly}
-          onAdd={() => addRow('bank-balances', { bank_name: '', account_no: '', amount_invested: 0, interest: 0, balance: 0 }, 'bankBalances')}
-          emptyLabel="No bank balances"
-          renderRow={(row, idx, ro, onDel) => (
-            <tr key={row.id} className="table-row">
-              <td className="table-cell text-brand-gray w-8">{idx + 1}</td>
-              <td className="table-cell"><EditableCell value={row.bank_name} onChange={(v) => !ro && updateRow('bank-balances', row.id, { bank_name: v }, 'bankBalances')} /></td>
-              <td className="table-cell"><EditableCell value={row.account_no} onChange={(v) => !ro && updateRow('bank-balances', row.id, { account_no: v }, 'bankBalances')} /></td>
-              <td className="table-cell"><EditableCell value={row.amount_invested} type="number" onChange={(v) => !ro && updateRow('bank-balances', row.id, { amount_invested: v }, 'bankBalances')} /></td>
-              <td className="table-cell"><EditableCell value={row.interest} type="number" onChange={(v) => !ro && updateRow('bank-balances', row.id, { interest: v }, 'bankBalances')} /></td>
-              <td className="table-cell"><EditableCell value={row.balance} type="number" onChange={(v) => !ro && updateRow('bank-balances', row.id, { balance: v }, 'bankBalances')} /></td>
-              {!ro && <td className="table-cell"><button onClick={() => onDel(row.id)} className="text-brand-red hover:opacity-80"><Trash2 size={14} /></button></td>}
-            </tr>
-          )}
-          onDelete={(id) => deleteRow('bank-balances', id, 'bankBalances')}
-        />
-
-        {/* 4. Shares/Stocks */}
-        <TableSection
-          title="4. Shares / Stocks / Securities"
-          columns={['#', 'Description', 'No. of Shares', 'Date Acquired', 'Cost/Mkt Value', 'Net Dividend']}
-          rows={shares}
-          isReadOnly={isReadOnly}
-          onAdd={() => addRow('shares', { description: '', no_of_shares: 0, cost_market_value: 0, net_dividend_income: 0 })}
-          emptyLabel="No shares or stocks"
-          renderRow={(row, idx, ro, onDel) => (
-            <tr key={row.id} className="table-row">
-              <td className="table-cell text-brand-gray w-8">{idx + 1}</td>
-              <td className="table-cell"><EditableCell value={row.description} onChange={(v) => !ro && updateRow('shares', row.id, { description: v }, 'shares')} /></td>
-              <td className="table-cell"><EditableCell value={row.no_of_shares} type="number" onChange={(v) => !ro && updateRow('shares', row.id, { no_of_shares: v }, 'shares')} /></td>
-              <td className="table-cell"><EditableCell value={row.date_of_acquisition || ''} type="date" onChange={(v) => !ro && updateRow('shares', row.id, { date_of_acquisition: v }, 'shares')} /></td>
-              <td className="table-cell"><EditableCell value={row.cost_market_value} type="number" onChange={(v) => !ro && updateRow('shares', row.id, { cost_market_value: v }, 'shares')} /></td>
-              <td className="table-cell"><EditableCell value={row.net_dividend_income} type="number" onChange={(v) => !ro && updateRow('shares', row.id, { net_dividend_income: v }, 'shares')} /></td>
-              {!ro && <td className="table-cell"><button onClick={() => onDel(row.id)} className="text-brand-red hover:opacity-80"><Trash2 size={14} /></button></td>}
-            </tr>
-          )}
-          onDelete={(id) => deleteRow('shares', id, 'shares')}
-        />
-
-        {/* 5 & 7. Cash in Hand / Gold */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <h4 className="text-sm font-semibold text-brand-yellow mb-2 uppercase tracking-wider">5. Cash in Hand</h4>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray text-sm font-mono">Rs.</span>
-              <input value={cashValue} onChange={(e) => setCashValue(e.target.value)} type="number" step="0.01" min="0" disabled={isReadOnly} className="input-field pl-10 text-right font-mono" placeholder="0.00" />
-            </div>
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-brand-gray font-medium">Filter by:</label>
+            <select
+              value={filterCat}
+              onChange={e => setFilterCat(e.target.value)}
+              className="input-field py-1.5 text-sm min-w-[190px]"
+            >
+              <option value="all">All Categories</option>
+              {CATEGORIES.map(c => (
+                <option key={c.key} value={c.key}>{c.label}</option>
+              ))}
+            </select>
           </div>
-          <div>
-            <h4 className="text-sm font-semibold text-brand-yellow mb-2 uppercase tracking-wider">7. Gold, Silver, Gems, Jewellery</h4>
-            <input value={goldDesc} onChange={(e) => setGoldDesc(e.target.value)} disabled={isReadOnly} className="input-field mb-2" placeholder="Description of items" />
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray text-sm font-mono">Rs.</span>
-              <input value={goldValue} onChange={(e) => setGoldValue(e.target.value)} type="number" step="0.01" min="0" disabled={isReadOnly} className="input-field pl-10 text-right font-mono" placeholder="Estimated value" />
-            </div>
-          </div>
+          {!isReadOnly && (
+            <button type="button" onClick={openAddModal} className="btn-primary text-sm px-4 py-2">
+              <Plus size={14} /> Add Entry
+            </button>
+          )}
         </div>
 
-        {/* 6. Loans Given */}
-        <TableSection
-          title="6. Loans Given & Amounts Receivable"
-          columns={['#', 'Borrower Name', 'Amount (Rs.)']}
-          rows={loans}
-          isReadOnly={isReadOnly}
-          onAdd={() => addRow('loans-given', { borrower_name: '', amount: 0 }, 'loans')}
-          emptyLabel="No loans given"
-          renderRow={(row, idx, ro, onDel) => (
-            <tr key={row.id} className="table-row">
-              <td className="table-cell text-brand-gray w-8">{idx + 1}</td>
-              <td className="table-cell"><EditableCell value={row.borrower_name} onChange={(v) => !ro && updateRow('loans-given', row.id, { borrower_name: v }, 'loans')} /></td>
-              <td className="table-cell"><EditableCell value={row.amount} type="number" onChange={(v) => !ro && updateRow('loans-given', row.id, { amount: v }, 'loans')} /></td>
-              {!ro && <td className="table-cell"><button onClick={() => onDel(row.id)} className="text-brand-red hover:opacity-80"><Trash2 size={14} /></button></td>}
-            </tr>
-          )}
-          onDelete={(id) => deleteRow('loans-given', id, 'loans')}
-        />
+        {/* Unified Table */}
+        <div className="overflow-x-auto rounded-lg border border-brand-gray-border mb-6">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-brand-black">
+                <th className="table-header text-left w-8">#</th>
+                <th className="table-header text-left">Category</th>
+                <th className="table-header text-left">Description</th>
+                <th className="table-header text-left">Key Details</th>
+                <th className="table-header text-right">Amount (Rs.)</th>
+                {!isReadOnly && <th className="table-header w-20 text-center">Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRows.length === 0 ? (
+                <tr>
+                  <td colSpan={isReadOnly ? 5 : 6} className="table-cell text-center text-brand-gray py-10">
+                    No entries found — click &quot;Add Entry&quot; to begin
+                  </td>
+                </tr>
+              ) : (
+                visibleRows.map((row, idx) => (
+                  <tr key={`${row.category}-${row.id}`} className="table-row">
+                    <td className="table-cell text-brand-gray">{idx + 1}</td>
+                    <td className="table-cell">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${COLOR_MAP[row.catDef.color]}`}>
+                        {row.catDef.label}
+                      </span>
+                    </td>
+                    <td className="table-cell min-w-[180px] text-white">{row.description}</td>
+                    <td className="table-cell text-brand-gray">{row.detail}</td>
+                    <td className="table-cell text-right font-mono text-white">{fmt(row.amount)}</td>
+                    {!isReadOnly && (
+                      <td className="table-cell text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => openEditModal(row)}
+                            className="text-brand-yellow hover:opacity-80 transition-opacity"
+                            title="Edit"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          {!row.isSingle && (
+                            <button
+                              onClick={() => handleDelete(row)}
+                              className="text-brand-red hover:opacity-80 transition-opacity"
+                              title="Delete"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-        {/* 8. Business Properties */}
-        <TableSection
-          title="8. Properties / Capital Accounts held as part of Business"
-          columns={['#', 'Name of Business', 'Current Account Balance (Rs.)', 'Capital Account Balance (Rs.)']}
-          rows={business}
-          isReadOnly={isReadOnly}
-          onAdd={() => addRow('business', { name_of_business: '', current_account_balance: 0, capital_account_balance: 0 })}
-          emptyLabel="No business properties"
-          renderRow={(row, idx, ro, onDel) => (
-            <tr key={row.id} className="table-row">
-              <td className="table-cell text-brand-gray w-8">{idx + 1}</td>
-              <td className="table-cell"><EditableCell value={row.name_of_business} onChange={(v) => !ro && updateRow('business', row.id, { name_of_business: v }, 'business')} /></td>
-              <td className="table-cell"><EditableCell value={row.current_account_balance} type="number" onChange={(v) => !ro && updateRow('business', row.id, { current_account_balance: v }, 'business')} /></td>
-              <td className="table-cell"><EditableCell value={row.capital_account_balance} type="number" onChange={(v) => !ro && updateRow('business', row.id, { capital_account_balance: v }, 'business')} /></td>
-              {!ro && <td className="table-cell"><button onClick={() => onDel(row.id)} className="text-brand-red hover:opacity-80"><Trash2 size={14} /></button></td>}
-            </tr>
-          )}
-          onDelete={(id) => deleteRow('business', id, 'business')}
-        />
-
-        {/* 9. Other Assets */}
-        <TableSection
-          title="9. Any Other Assets Acquired / Gifts Received During the Year"
-          columns={['#', 'Description', 'Gift/Purchase/Exchange', 'Date of Acquisition', 'Cost/Value (Rs.)']}
-          rows={otherAssets}
-          isReadOnly={isReadOnly}
-          onAdd={() => addRow('other', { description: '', acquisition_type: 'purchase', cost_value: 0 }, 'otherAssets')}
-          emptyLabel="No other assets"
-          renderRow={(row, idx, ro, onDel) => (
-            <tr key={row.id} className="table-row">
-              <td className="table-cell text-brand-gray w-8">{idx + 1}</td>
-              <td className="table-cell"><EditableCell value={row.description} onChange={(v) => !ro && updateRow('other', row.id, { description: v }, 'otherAssets')} /></td>
-              <td className="table-cell">
-                {ro ? row.acquisition_type : (
-                  <select defaultValue={row.acquisition_type} onChange={(e) => updateRow('other', row.id, { acquisition_type: e.target.value }, 'otherAssets')} className="bg-transparent text-white text-sm border-0 focus:outline-none">
-                    <option value="purchase" className="bg-brand-black">Purchase</option>
-                    <option value="gift" className="bg-brand-black">Gift</option>
-                    <option value="exchange" className="bg-brand-black">Exchange</option>
-                  </select>
-                )}
-              </td>
-              <td className="table-cell"><EditableCell value={row.date_of_acquisition || ''} type="date" onChange={(v) => !ro && updateRow('other', row.id, { date_of_acquisition: v }, 'otherAssets')} /></td>
-              <td className="table-cell"><EditableCell value={row.cost_value} type="number" onChange={(v) => !ro && updateRow('other', row.id, { cost_value: v }, 'otherAssets')} /></td>
-              {!ro && <td className="table-cell"><button onClick={() => onDel(row.id)} className="text-brand-red hover:opacity-80"><Trash2 size={14} /></button></td>}
-            </tr>
-          )}
-          onDelete={(id) => deleteRow('other', id, 'otherAssets')}
-        />
-
-        {/* 10. Disposals */}
-        <TableSection
-          title="10. Disposal of Assets (Sales/Transfer/Gift) During the Year"
-          columns={['#', 'Description', 'Date of Disposal', 'Sales Proceed (Rs.)', 'Date Acquired', 'Cost (Rs.)']}
-          rows={disposals}
-          isReadOnly={isReadOnly}
-          onAdd={() => addRow('disposals', { description: '', sales_proceed: 0, cost: 0 })}
-          emptyLabel="No disposals during the year"
-          renderRow={(row, idx, ro, onDel) => (
-            <tr key={row.id} className="table-row">
-              <td className="table-cell text-brand-gray w-8">{idx + 1}</td>
-              <td className="table-cell"><EditableCell value={row.description} onChange={(v) => !ro && updateRow('disposals', row.id, { description: v }, 'disposals')} /></td>
-              <td className="table-cell"><EditableCell value={row.date_of_disposal || ''} type="date" onChange={(v) => !ro && updateRow('disposals', row.id, { date_of_disposal: v }, 'disposals')} /></td>
-              <td className="table-cell"><EditableCell value={row.sales_proceed} type="number" onChange={(v) => !ro && updateRow('disposals', row.id, { sales_proceed: v }, 'disposals')} /></td>
-              <td className="table-cell"><EditableCell value={row.date_acquired || ''} type="date" onChange={(v) => !ro && updateRow('disposals', row.id, { date_acquired: v }, 'disposals')} /></td>
-              <td className="table-cell"><EditableCell value={row.cost} type="number" onChange={(v) => !ro && updateRow('disposals', row.id, { cost: v }, 'disposals')} /></td>
-              {!ro && <td className="table-cell"><button onClick={() => onDel(row.id)} className="text-brand-red hover:opacity-80"><Trash2 size={14} /></button></td>}
-            </tr>
-          )}
-          onDelete={(id) => deleteRow('disposals', id, 'disposals')}
-        />
-
-        {!isReadOnly && (
-          <div className="flex justify-end pt-2">
-            <button type="button" onClick={saveCashGold} disabled={saving} className="btn-primary">
-              <Save size={15} /> {saving ? 'Saving...' : 'Save Cash & Jewellery'}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Navigation */}
@@ -337,7 +402,97 @@ export default function AssetsSection({ submissionId, isReadOnly, onNext, onPrev
           Next: Liabilities <ChevronRight size={15} />
         </button>
       </div>
+
+      {/* Add / Edit Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-brand-black-light border border-brand-gray-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            {/* Modal header */}
+            <div className="flex items-center justify-between p-5 border-b border-brand-gray-border sticky top-0 bg-brand-black-light z-10">
+              <div>
+                <h3 className="text-white font-semibold">
+                  {editTarget ? 'Edit Entry' : 'Add New Entry'}
+                </h3>
+                <p className="text-xs text-brand-gray mt-0.5">
+                  {editTarget ? 'Update the details below' : 'Select a category and fill in the details'}
+                </p>
+              </div>
+              <button onClick={() => setModalOpen(false)} className="text-brand-gray hover:text-white transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Category selector */}
+              <div>
+                <label className="block text-xs text-brand-gray mb-1.5 font-medium uppercase tracking-wider">
+                  Category
+                </label>
+                {editTarget ? (
+                  <span className={`inline-flex items-center px-3 py-1.5 rounded text-sm font-medium ${COLOR_MAP[activeCat.color]}`}>
+                    {activeCat.label}
+                  </span>
+                ) : (
+                  <select
+                    value={modalCat}
+                    onChange={e => onCategoryChange(e.target.value)}
+                    className="input-field w-full"
+                  >
+                    {CATEGORIES.map(c => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Dynamic fields */}
+              {activeCat.fields.map(field => (
+                <div key={field.key}>
+                  <label className="block text-xs text-brand-gray mb-1.5 font-medium uppercase tracking-wider">
+                    {field.label}
+                  </label>
+                  {field.type === 'select' ? (
+                    <select
+                      value={formVals[field.key] ?? ''}
+                      onChange={e => setFormVals(v => ({ ...v, [field.key]: e.target.value }))}
+                      className="input-field w-full"
+                    >
+                      {field.options.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type={field.type}
+                      step={field.type === 'number' ? '0.01' : undefined}
+                      min={field.type === 'number' ? '0' : undefined}
+                      value={formVals[field.key] ?? ''}
+                      onChange={e => setFormVals(v => ({ ...v, [field.key]: e.target.value }))}
+                      className={`input-field w-full ${field.type === 'number' ? 'text-right font-mono' : ''}`}
+                    />
+                  )}
+                </div>
+              ))}
+
+              {activeCat.isSingle && (
+                <p className="text-xs text-brand-gray bg-brand-black rounded p-2">
+                  This is a single-record field. Saving will update the existing value.
+                </p>
+              )}
+            </div>
+
+            {/* Modal footer */}
+            <div className="flex justify-end gap-3 p-5 border-t border-brand-gray-border">
+              <button onClick={() => setModalOpen(false)} className="btn-secondary">
+                Cancel
+              </button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary">
+                <Save size={14} /> {saving ? 'Saving…' : editTarget ? 'Update' : 'Add'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
-
 }

@@ -1,8 +1,25 @@
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Trash2, Pencil, X, Save, CreditCard } from 'lucide-react'
 import api from '../../../services/api'
 import FileUpload from '../../../components/common/FileUpload'
 import toast from 'react-hot-toast'
+
+const FIELDS = [
+  { key: 'description',              label: 'Description of Liability',         type: 'text' },
+  { key: 'security_on_liability',    label: 'Security',                         type: 'text' },
+  { key: 'date_of_commencement',     label: 'Date of Commencement',             type: 'date' },
+  { key: 'original_amount',          label: 'Original Amount (Rs.)',             type: 'number' },
+  { key: 'amount_as_at_date',        label: 'Balance as at 31.03.2026 (Rs.)',   type: 'number' },
+  { key: 'amount_repaid_during_year',label: 'Amount Repaid During Y/A (Rs.)',   type: 'number' },
+]
+
+const DEFAULTS = { description: '', security_on_liability: '', original_amount: 0, amount_as_at_date: 0, amount_repaid_during_year: 0 }
+
+function fmt(v) {
+  const n = parseFloat(v || 0)
+  return isNaN(n) ? 'Rs. 0.00' : `Rs. ${n.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
 
 export default function LiabilitiesSection({ submissionId, documents, onUpload, onDeleteDoc, isReadOnly, onNext, onPrev }) {
   const qc = useQueryClient()
@@ -12,108 +29,113 @@ export default function LiabilitiesSection({ submissionId, documents, onUpload, 
     queryFn: () => api.get(`/tax/submissions/${submissionId}/liabilities/`).then(r => r.data),
   })
 
-  async function addLiability() {
-    try {
-      await api.post(`/tax/submissions/${submissionId}/liabilities/`, { description: '', original_amount: 0, amount_as_at_date: 0, amount_repaid_during_year: 0 })
-      qc.invalidateQueries(['liabilities', submissionId])
-    } catch { toast.error('Failed to add') }
+  const [modalOpen, setModalOpen] = useState(false)
+  const [formVals, setFormVals] = useState({})
+  const [editId, setEditId] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  function openAdd() {
+    setFormVals({ ...DEFAULTS })
+    setEditId(null)
+    setModalOpen(true)
   }
 
-  async function deleteLiability(id) {
+  function openEdit(lib) {
+    setFormVals({ ...lib })
+    setEditId(lib.id)
+    setModalOpen(true)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      if (editId) {
+        await api.patch(`/tax/liabilities/${editId}/`, formVals)
+        toast.success('Updated')
+      } else {
+        await api.post(`/tax/submissions/${submissionId}/liabilities/`, formVals)
+        toast.success('Added')
+      }
+      qc.invalidateQueries(['liabilities', submissionId])
+      setModalOpen(false)
+    } catch {
+      toast.error('Failed to save')
+    }
+    setSaving(false)
+  }
+
+  async function handleDelete(id) {
     try {
       await api.delete(`/tax/liabilities/${id}/`)
       qc.invalidateQueries(['liabilities', submissionId])
-    } catch { toast.error('Failed to delete') }
-  }
-
-  async function updateLiability(id, field, value) {
-    try {
-      await api.patch(`/tax/liabilities/${id}/`, { [field]: value })
-      qc.invalidateQueries(['liabilities', submissionId])
-    } catch { toast.error('Failed to update') }
-  }
-
-  function EditCell({ value, onChange, type = 'text' }) {
-    return (
-      <input
-        defaultValue={value}
-        type={type}
-        step={type === 'number' ? '0.01' : undefined}
-        onBlur={(e) => !isReadOnly && onChange(e.target.value)}
-        disabled={isReadOnly}
-        className={`bg-transparent border-0 text-white text-sm w-full focus:outline-none focus:bg-brand-black-soft rounded px-1 ${type === 'number' ? 'text-right font-mono' : ''}`}
-      />
-    )
+      toast.success('Deleted')
+    } catch {
+      toast.error('Failed to delete')
+    }
   }
 
   return (
     <div className="space-y-6">
       <div className="form-section">
         <h3 className="section-header">
-          <span className="text-brand-yellow font-bold">$</span>
+          <CreditCard size={18} className="text-brand-yellow" />
           Liabilities as at 31st March 2026
         </h3>
-
-        <p className="text-sm text-brand-gray mb-4">
-          Bank Loans, Leasing, Current or Credit Card Account balances etc.
+        <p className="text-sm text-brand-gray mb-5">
+          Bank loans, leasing, credit card balances, and all other outstanding liabilities.
         </p>
 
-        <div className="flex justify-end mb-3">
+        {/* Toolbar */}
+        <div className="flex justify-end mb-4">
           {!isReadOnly && (
-            <button type="button" onClick={addLiability} className="btn-secondary text-xs px-3 py-1.5">
-              <Plus size={13} /> Add Liability
+            <button type="button" onClick={openAdd} className="btn-primary text-sm px-4 py-2">
+              <Plus size={14} /> Add Liability
             </button>
           )}
         </div>
 
+        {/* Table */}
         <div className="overflow-x-auto rounded-lg border border-brand-gray-border mb-6">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-brand-black">
-                <th className="table-header text-left">#</th>
-                <th className="table-header text-left">Description of Liability</th>
+                <th className="table-header text-left w-8">#</th>
+                <th className="table-header text-left">Description</th>
                 <th className="table-header text-left">Security</th>
-                <th className="table-header text-left">Date of Commencement</th>
+                <th className="table-header text-left">Date Commenced</th>
                 <th className="table-header text-right">Original Amount</th>
-                <th className="table-header text-right">Balance as at 31.03.2026</th>
+                <th className="table-header text-right">Balance 31.03.2026</th>
                 <th className="table-header text-right">Amount Repaid Y/A</th>
-                {!isReadOnly && <th className="table-header w-10" />}
+                {!isReadOnly && <th className="table-header w-20 text-center">Actions</th>}
               </tr>
             </thead>
             <tbody>
               {liabilities.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="table-cell text-center text-brand-gray py-8">
-                    No liabilities entered — click "Add Liability" to begin
+                  <td colSpan={isReadOnly ? 7 : 8} className="table-cell text-center text-brand-gray py-10">
+                    No liabilities entered — click &quot;Add Liability&quot; to begin
                   </td>
                 </tr>
               ) : (
                 liabilities.map((lib, idx) => (
                   <tr key={lib.id} className="table-row">
-                    <td className="table-cell text-brand-gray w-8">{idx + 1}</td>
-                    <td className="table-cell min-w-[200px]">
-                      <EditCell value={lib.description} onChange={(v) => updateLiability(lib.id, 'description', v)} />
-                    </td>
-                    <td className="table-cell min-w-[150px]">
-                      <EditCell value={lib.security_on_liability || ''} onChange={(v) => updateLiability(lib.id, 'security_on_liability', v)} />
-                    </td>
-                    <td className="table-cell">
-                      <EditCell value={lib.date_of_commencement || ''} type="date" onChange={(v) => updateLiability(lib.id, 'date_of_commencement', v)} />
-                    </td>
-                    <td className="table-cell">
-                      <EditCell value={lib.original_amount} type="number" onChange={(v) => updateLiability(lib.id, 'original_amount', v)} />
-                    </td>
-                    <td className="table-cell">
-                      <EditCell value={lib.amount_as_at_date} type="number" onChange={(v) => updateLiability(lib.id, 'amount_as_at_date', v)} />
-                    </td>
-                    <td className="table-cell">
-                      <EditCell value={lib.amount_repaid_during_year} type="number" onChange={(v) => updateLiability(lib.id, 'amount_repaid_during_year', v)} />
-                    </td>
+                    <td className="table-cell text-brand-gray">{idx + 1}</td>
+                    <td className="table-cell min-w-[160px] text-white">{lib.description || '—'}</td>
+                    <td className="table-cell text-brand-gray">{lib.security_on_liability || '—'}</td>
+                    <td className="table-cell text-brand-gray">{lib.date_of_commencement || '—'}</td>
+                    <td className="table-cell text-right font-mono text-white">{fmt(lib.original_amount)}</td>
+                    <td className="table-cell text-right font-mono text-white">{fmt(lib.amount_as_at_date)}</td>
+                    <td className="table-cell text-right font-mono text-white">{fmt(lib.amount_repaid_during_year)}</td>
                     {!isReadOnly && (
-                      <td className="table-cell">
-                        <button onClick={() => deleteLiability(lib.id)} className="text-brand-red hover:opacity-80">
-                          <Trash2 size={14} />
-                        </button>
+                      <td className="table-cell text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => openEdit(lib)} className="text-brand-yellow hover:opacity-80 transition-opacity" title="Edit">
+                            <Pencil size={13} />
+                          </button>
+                          <button onClick={() => handleDelete(lib.id)} className="text-brand-red hover:opacity-80 transition-opacity" title="Delete">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -142,6 +164,7 @@ export default function LiabilitiesSection({ submissionId, documents, onUpload, 
         />
       </div>
 
+      {/* Navigation */}
       <div className="flex justify-between">
         <button type="button" onClick={onPrev} className="btn-secondary">
           <ChevronLeft size={15} /> Previous
@@ -150,6 +173,52 @@ export default function LiabilitiesSection({ submissionId, documents, onUpload, 
           Next: Declarant Details <ChevronRight size={15} />
         </button>
       </div>
+
+      {/* Add / Edit Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-brand-black-light border border-brand-gray-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-brand-gray-border sticky top-0 bg-brand-black-light z-10">
+              <div>
+                <h3 className="text-white font-semibold">
+                  {editId ? 'Edit Liability' : 'Add Liability'}
+                </h3>
+                <p className="text-xs text-brand-gray mt-0.5">
+                  {editId ? 'Update the details below' : 'Enter the liability details'}
+                </p>
+              </div>
+              <button onClick={() => setModalOpen(false)} className="text-brand-gray hover:text-white transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {FIELDS.map(field => (
+                <div key={field.key}>
+                  <label className="block text-xs text-brand-gray mb-1.5 font-medium uppercase tracking-wider">
+                    {field.label}
+                  </label>
+                  <input
+                    type={field.type}
+                    step={field.type === 'number' ? '0.01' : undefined}
+                    min={field.type === 'number' ? '0' : undefined}
+                    value={formVals[field.key] ?? ''}
+                    onChange={e => setFormVals(v => ({ ...v, [field.key]: e.target.value }))}
+                    className={`input-field w-full ${field.type === 'number' ? 'text-right font-mono' : ''}`}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-3 p-5 border-t border-brand-gray-border">
+              <button onClick={() => setModalOpen(false)} className="btn-secondary">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary">
+                <Save size={14} /> {saving ? 'Saving…' : editId ? 'Update' : 'Add'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

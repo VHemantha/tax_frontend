@@ -15,11 +15,11 @@ import clsx from 'clsx'
 import toast from 'react-hot-toast'
 
 const STEPS = [
-  { id: 'income',     label: 'Income & Expenses',  icon: DollarSign,  shortLabel: 'Income' },
-  { id: 'assets',     label: 'Assets',              icon: Building2,   shortLabel: 'Assets' },
-  { id: 'liabilities',label: 'Liabilities',         icon: CreditCard,  shortLabel: 'Liabilities' },
-  { id: 'declarant',  label: 'Declarant Details',   icon: User,        shortLabel: 'Declarant' },
-  { id: 'review',     label: 'Review & Submit',     icon: FileCheck,   shortLabel: 'Review' },
+  { id: 'income',      label: 'Income & Expenses',  icon: DollarSign,  shortLabel: 'Income' },
+  { id: 'assets',      label: 'Assets',             icon: Building2,   shortLabel: 'Assets' },
+  { id: 'liabilities', label: 'Liabilities',        icon: CreditCard,  shortLabel: 'Liabilities' },
+  { id: 'declarant',   label: 'Declarant Details',  icon: User,        shortLabel: 'Declarant' },
+  { id: 'review',      label: 'Review & Submit',    icon: FileCheck,   shortLabel: 'Review' },
 ]
 
 export default function TaxFormPage() {
