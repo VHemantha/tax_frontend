@@ -72,6 +72,25 @@ export default function ClientDetail() {
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to send form'),
   })
 
+  const sendAllForms = useMutation({
+    mutationFn: (yearIds) => api.post('/tax/send-forms-bulk/', {
+      client_profile_id: Number(clientId),
+      tax_year_ids: yearIds,
+    }),
+    onSuccess: (data) => {
+      const { sent = [], skipped = [] } = data.data
+      if (sent.length > 0) {
+        toast.success(`${sent.length} form(s) sent successfully`)
+      }
+      if (skipped.length > 0) {
+        toast(`${skipped.length} year(s) skipped (already sent)`, { icon: 'ℹ️' })
+      }
+      qc.invalidateQueries(['assessment-years', clientId])
+      qc.invalidateQueries(['client-submissions', clientId, client?.user_id])
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to send forms'),
+  })
+
   const assignYears = useMutation({
     mutationFn: () => api.post(`/clients/${clientId}/assessment-years/`, { year_ids: selectedYears }),
     onSuccess: () => {
@@ -161,6 +180,24 @@ export default function ClientDetail() {
                 <Plus size={12} /> Assign
               </button>
             </div>
+
+            {/* Send All Pending button */}
+            {(() => {
+              const pendingYears = assessmentYears.filter(ay => !ay.form_sent)
+              if (pendingYears.length === 0) return null
+              return (
+                <button
+                  onClick={() => sendAllForms.mutate(pendingYears.map(ay => ay.year_id))}
+                  disabled={sendAllForms.isPending}
+                  className="btn-primary w-full text-sm mb-4"
+                >
+                  <Send size={14} />
+                  {sendAllForms.isPending
+                    ? 'Sending…'
+                    : `Send All Pending Forms (${pendingYears.length})`}
+                </button>
+              )
+            })()}
 
             {assessmentYears.length === 0 ? (
               <p className="text-xs text-brand-gray text-center py-4">

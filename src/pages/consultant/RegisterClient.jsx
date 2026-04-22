@@ -230,10 +230,33 @@ export default function RegisterClient() {
           Assessment Years
         </h3>
         <p className="text-sm text-brand-gray mb-4">
-          Select the assessment year(s) for which this client will file. You can add more years later from the client profile.
+          Select one or more assessment years. Showing current year and up to 5 previous years.
+          You can assign additional years from the client profile at any time.
         </p>
+
+        {/* Select All / Clear shortcuts */}
+        {taxYears.slice(0, 6).length > 1 && (
+          <div className="flex gap-3 mb-3">
+            <button
+              type="button"
+              onClick={() => setSelectedYears(taxYears.slice(0, 6).map(y => y.id))}
+              className="text-xs text-brand-yellow hover:opacity-80"
+            >
+              Select all
+            </button>
+            <span className="text-brand-gray-border">|</span>
+            <button
+              type="button"
+              onClick={() => setSelectedYears([])}
+              className="text-xs text-brand-gray hover:text-white"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
-          {taxYears.map(year => (
+          {taxYears.slice(0, 6).map((year, idx) => (
             <button
               key={year.id}
               type="button"
@@ -252,14 +275,22 @@ export default function RegisterClient() {
                 {selectedYears.includes(year.id) && <CheckCircle size={10} className="text-brand-black" />}
               </div>
               <div>
-                <p className="text-sm font-medium">{year.label}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium">{year.label}</p>
+                  {idx === 0 && (
+                    <span className="text-xs bg-brand-yellow/20 text-brand-yellow px-1.5 py-0.5 rounded font-medium">Current</span>
+                  )}
+                </div>
                 <p className="text-xs text-brand-gray">Starts {year.assessment_year_start}</p>
               </div>
             </button>
           ))}
         </div>
-        {selectedYears.length === 0 && (
+
+        {selectedYears.length === 0 ? (
           <p className="text-xs text-brand-gray italic mb-4">No year selected — you can assign years from the client profile later.</p>
+        ) : (
+          <p className="text-xs text-brand-yellow mb-4">{selectedYears.length} year(s) selected — forms will be ready to send after registration.</p>
         )}
 
         <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-brand-gray-border">
