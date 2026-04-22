@@ -8,16 +8,20 @@ import PageHeader from '../../components/common/PageHeader'
 import Modal from '../../components/common/Modal'
 import {
   ArrowLeft, Calculator, MessageSquare, FileText, Download,
-  CheckCircle, Eye, ExternalLink, Send, Archive
+  CheckCircle, Eye, Send, Archive, Calendar, Plus, X
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import clsx from 'clsx'
 
 export default function ClientDetail() {
   const { clientId } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
+
   const [infoModal, setInfoModal] = useState(false)
   const [infoMessage, setInfoMessage] = useState('')
+  const [assignYearsModal, setAssignYearsModal] = useState(false)
+  const [selectedYears, setSelectedYears] = useState([])
 
   const { data: client } = useQuery({
     queryKey: ['client', clientId],
@@ -28,6 +32,18 @@ export default function ClientDetail() {
     queryKey: ['client-submissions', clientId, client?.user_id],
     queryFn: () => api.get('/tax/submissions/').then(r => r.data.filter(s => s.client === client?.user_id)),
     enabled: !!client?.user_id,
+  })
+
+  const { data: assessmentYears = [] } = useQuery({
+    queryKey: ['assessment-years', clientId],
+    queryFn: () => api.get(`/clients/${clientId}/assessment-years/`).then(r => r.data),
+    enabled: !!clientId,
+  })
+
+  const { data: taxYears = [] } = useQuery({
+    queryKey: ['tax-years-all'],
+    queryFn: () => api.get('/tax/years/').then(r => r.data),
+    enabled: assignYearsModal,
   })
 
   const latestSubmission = submissions[0]
@@ -43,6 +59,30 @@ export default function ClientDetail() {
     onError: () => toast.error('Failed to send request'),
   })
 
+  const sendForm = useMutation({
+    mutationFn: ({ yearId }) => api.post('/tax/send-form/', {
+      client_profile_id: Number(clientId),
+      tax_year_id: yearId,
+    }),
+    onSuccess: (data, { yearLabel }) => {
+      toast.success(`Form sent for ${yearLabel}`)
+      qc.invalidateQueries(['assessment-years', clientId])
+      qc.invalidateQueries(['client-submissions', clientId, client?.user_id])
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to send form'),
+  })
+
+  const assignYears = useMutation({
+    mutationFn: () => api.post(`/clients/${clientId}/assessment-years/`, { year_ids: selectedYears }),
+    onSuccess: () => {
+      toast.success('Assessment years assigned')
+      setAssignYearsModal(false)
+      setSelectedYears([])
+      qc.invalidateQueries(['assessment-years', clientId])
+    },
+    onError: () => toast.error('Failed to assign years'),
+  })
+
   async function downloadPDF(submissionId) {
     try {
       const response = await api.get(`/tax/submissions/${submissionId}/pdf/`, { responseType: 'blob' })
@@ -53,6 +93,14 @@ export default function ClientDetail() {
       a.click()
     } catch { toast.error('Failed to download PDF') }
   }
+
+  function toggleYear(id) {
+    setSelectedYears(prev =>
+      prev.includes(id) ? prev.filter(y => y !== id) : [...prev, id]
+    )
+  }
+
+  const assignedYearIds = assessmentYears.map(a => a.year_id)
 
   return (
     <div className="animate-fade-in">
@@ -74,35 +122,110 @@ export default function ClientDetail() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Profile */}
-        <div className="card">
-          <h3 className="section-header">Client Profile</h3>
-          <div className="space-y-3">
-            {[
-              ['Status', <StatusBadge status={client?.status} />],
-              ['TIN', client?.tin || '—'],
-              ['PIN', client?.pin || '—'],
-              ['NIC/Passport', client?.nic_passport || '—'],
-              ['Telephone', client?.telephone || '—'],
-              ['Mobile', client?.mobile || '—'],
-              ['Registered', formatDateTime(client?.created_at)],
-            ].map(([label, value]) => (
-              <div key={label} className="flex justify-between items-start">
-                <span className="text-xs text-brand-gray">{label}</span>
-                <span className="text-sm text-white font-medium text-right max-w-[60%]">
-                  {typeof value === 'string' ? value : value}
-                </span>
+        {/* Left column: Profile + Assessment Years */}
+        <div className="space-y-4">
+          {/* Profile card */}
+          <div className="card">
+            <h3 className="section-header">Client Profile</h3>
+            <div className="space-y-3">
+              {[
+                ['Status', <StatusBadge status={client?.status} />],
+                ['TIN', client?.tin || '—'],
+                ['PIN', client?.pin || '—'],
+                ['NIC/Passport', client?.nic_passport || '—'],
+                ['Telephone', client?.telephone || '—'],
+                ['Mobile', client?.mobile || '—'],
+                ['Registered', formatDateTime(client?.created_at)],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between items-start">
+                  <span className="text-xs text-brand-gray">{label}</span>
+                  <span className="text-sm text-white font-medium text-right max-w-[60%]">
+                    {typeof value === 'string' ? value : value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Assessment Years card */}
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="section-header mb-0">
+                <Calendar size={16} className="text-brand-yellow" />
+                Assessment Years
+              </h3>
+              <button
+                onClick={() => setAssignYearsModal(true)}
+                className="btn-secondary text-xs px-2.5 py-1.5"
+              >
+                <Plus size={12} /> Assign
+              </button>
+            </div>
+
+            {assessmentYears.length === 0 ? (
+              <p className="text-xs text-brand-gray text-center py-4">
+                No assessment years assigned yet.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {assessmentYears.map(ay => (
+                  <div
+                    key={ay.id}
+                    className={clsx(
+                      'rounded-lg p-3 border',
+                      ay.form_sent
+                        ? 'bg-brand-success/5 border-brand-success/20'
+                        : 'bg-brand-black-soft border-brand-gray-border'
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-white">{ay.year_label}</p>
+                        <p className="text-xs text-brand-gray mt-0.5">Starts {ay.assessment_year_start}</p>
+                        {ay.submission_status && (
+                          <div className="mt-1">
+                            <StatusBadge status={ay.submission_status} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5">
+                        {ay.form_sent ? (
+                          <span className="text-xs text-brand-success flex items-center gap-1">
+                            <CheckCircle size={11} /> Sent
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => sendForm.mutate({ yearId: ay.year_id, yearLabel: ay.year_label })}
+                            disabled={sendForm.isPending}
+                            className="btn-primary text-xs px-2.5 py-1.5"
+                          >
+                            <Send size={11} /> Send Form
+                          </button>
+                        )}
+                        {ay.submission_id && (
+                          <button
+                            onClick={() => navigate(`/consultant/submissions/${ay.submission_id}/calculate`)}
+                            className="btn-ghost text-xs px-2 py-1"
+                          >
+                            <Eye size={11} /> View
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         </div>
 
-        {/* Submissions */}
+        {/* Right column: Submissions */}
         <div className="lg:col-span-2 space-y-4">
           {submissions.length === 0 ? (
             <div className="card text-center py-12">
               <FileText size={32} className="mx-auto text-brand-gray mb-3 opacity-40" />
               <p className="text-brand-gray">No submissions yet</p>
+              <p className="text-xs text-brand-gray mt-1">Assign an assessment year and send the form to begin.</p>
             </div>
           ) : (
             submissions.map(sub => (
@@ -227,6 +350,74 @@ export default function ClientDetail() {
           </div>
         </div>
       </Modal>
+
+      {/* Assign Assessment Years Modal */}
+      {assignYearsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-brand-black-light border border-brand-gray-border rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-brand-gray-border">
+              <div>
+                <h3 className="text-white font-semibold">Assign Assessment Years</h3>
+                <p className="text-xs text-brand-gray mt-0.5">Select the years for {client?.full_name}</p>
+              </div>
+              <button onClick={() => setAssignYearsModal(false)} className="text-brand-gray hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-5 space-y-2">
+              {taxYears.length === 0 ? (
+                <p className="text-sm text-brand-gray text-center py-4">No tax years available.</p>
+              ) : (
+                taxYears.map(year => {
+                  const alreadyAssigned = assignedYearIds.includes(year.id)
+                  return (
+                    <button
+                      key={year.id}
+                      type="button"
+                      disabled={alreadyAssigned}
+                      onClick={() => !alreadyAssigned && toggleYear(year.id)}
+                      className={clsx(
+                        'w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all',
+                        alreadyAssigned
+                          ? 'bg-brand-black opacity-50 border-brand-gray-border cursor-not-allowed'
+                          : selectedYears.includes(year.id)
+                          ? 'bg-brand-yellow/10 border-brand-yellow text-white'
+                          : 'bg-brand-black-soft border-brand-gray-border text-brand-gray hover:border-brand-gray'
+                      )}
+                    >
+                      <div className={clsx(
+                        'w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0',
+                        alreadyAssigned ? 'bg-brand-success border-brand-success' :
+                        selectedYears.includes(year.id) ? 'bg-brand-yellow border-brand-yellow' : 'border-brand-gray'
+                      )}>
+                        {(alreadyAssigned || selectedYears.includes(year.id)) && (
+                          <CheckCircle size={10} className="text-brand-black" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{year.label}</p>
+                        <p className="text-xs text-brand-gray">
+                          {alreadyAssigned ? 'Already assigned' : `Starts ${year.assessment_year_start}`}
+                        </p>
+                      </div>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+            <div className="flex justify-end gap-3 p-5 border-t border-brand-gray-border">
+              <button onClick={() => setAssignYearsModal(false)} className="btn-secondary">Cancel</button>
+              <button
+                onClick={() => assignYears.mutate()}
+                disabled={selectedYears.length === 0 || assignYears.isPending}
+                className="btn-primary"
+              >
+                <Calendar size={14} /> {assignYears.isPending ? 'Assigning…' : `Assign ${selectedYears.length > 0 ? `(${selectedYears.length})` : ''}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

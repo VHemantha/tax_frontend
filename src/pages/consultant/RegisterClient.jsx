@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import PageHeader from '../../components/common/PageHeader'
-import { UserPlus, Eye, EyeOff, AlertCircle, Copy, CheckCircle, ChevronDown } from 'lucide-react'
+import { UserPlus, Eye, EyeOff, AlertCircle, Copy, CheckCircle, ChevronDown, Calendar } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
@@ -18,6 +18,7 @@ export default function RegisterClient() {
   const [showPass, setShowPass] = useState(false)
   const [success, setSuccess] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [selectedYears, setSelectedYears] = useState([])
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm({
     defaultValues: { password: generatePassword() }
@@ -28,10 +29,21 @@ export default function RegisterClient() {
     queryFn: () => api.get('/clients/consultants/').then(r => r.data),
   })
 
+  const { data: taxYears = [] } = useQuery({
+    queryKey: ['tax-years-all'],
+    queryFn: () => api.get('/tax/years/').then(r => r.data),
+  })
+
+  function toggleYear(id) {
+    setSelectedYears(prev =>
+      prev.includes(id) ? prev.filter(y => y !== id) : [...prev, id]
+    )
+  }
+
   async function onSubmit(data) {
     setLoading(true)
     try {
-      const payload = { ...data }
+      const payload = { ...data, assessment_year_ids: selectedYears }
       if (data.consultant_id) {
         payload.consultant_id = Number(data.consultant_id)
       }
@@ -210,6 +222,45 @@ export default function RegisterClient() {
             <textarea {...register('address')} rows={2} className="input-field resize-none" placeholder="Full address" />
           </div>
         </div>
+
+        <hr className="border-brand-gray-border mb-5" />
+
+        <h3 className="section-header">
+          <Calendar size={18} className="text-brand-yellow" />
+          Assessment Years
+        </h3>
+        <p className="text-sm text-brand-gray mb-4">
+          Select the assessment year(s) for which this client will file. You can add more years later from the client profile.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
+          {taxYears.map(year => (
+            <button
+              key={year.id}
+              type="button"
+              onClick={() => toggleYear(year.id)}
+              className={clsx(
+                'flex items-center gap-3 p-3 rounded-xl border text-left transition-all',
+                selectedYears.includes(year.id)
+                  ? 'bg-brand-yellow/10 border-brand-yellow text-white'
+                  : 'bg-brand-black-soft border-brand-gray-border text-brand-gray hover:border-brand-gray'
+              )}
+            >
+              <div className={clsx(
+                'w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all',
+                selectedYears.includes(year.id) ? 'bg-brand-yellow border-brand-yellow' : 'border-brand-gray'
+              )}>
+                {selectedYears.includes(year.id) && <CheckCircle size={10} className="text-brand-black" />}
+              </div>
+              <div>
+                <p className="text-sm font-medium">{year.label}</p>
+                <p className="text-xs text-brand-gray">Starts {year.assessment_year_start}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+        {selectedYears.length === 0 && (
+          <p className="text-xs text-brand-gray italic mb-4">No year selected — you can assign years from the client profile later.</p>
+        )}
 
         <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-brand-gray-border">
           <button type="button" onClick={() => navigate(backPath)} className="btn-secondary">Cancel</button>

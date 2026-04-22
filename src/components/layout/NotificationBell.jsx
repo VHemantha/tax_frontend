@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bell, Check, CheckCheck } from 'lucide-react'
+import { Bell, CheckCheck } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import { formatDateTime } from '../../utils/format'
 import clsx from 'clsx'
@@ -9,6 +10,7 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false)
   const ref = useRef()
   const qc = useQueryClient()
+  const navigate = useNavigate()
 
   const { data: countData } = useQuery({
     queryKey: ['unread-count'],
@@ -29,6 +31,24 @@ export default function NotificationBell() {
       qc.invalidateQueries(['notifications'])
     },
   })
+
+  const markOneRead = useMutation({
+    mutationFn: (id) => api.post(`/notifications/${id}/mark-read/`),
+    onSuccess: () => {
+      qc.invalidateQueries(['unread-count'])
+      qc.invalidateQueries(['notifications'])
+    },
+  })
+
+  function handleNotificationClick(n) {
+    markOneRead.mutate(n.id)
+    setOpen(false)
+    if (n.related_client_id) {
+      navigate(`/consultant/clients/${n.related_client_id}`)
+    } else if (n.related_submission_id) {
+      navigate(`/client/tax-form/${n.related_submission_id}`)
+    }
+  }
 
   useEffect(() => {
     function handler(e) {
@@ -81,18 +101,33 @@ export default function NotificationBell() {
                 <p className="text-sm text-brand-gray">No new notifications</p>
               </div>
             ) : (
-              notifications.map(n => (
-                <div key={n.id} className="px-4 py-3 border-b border-brand-gray-border/50 hover:bg-brand-black-soft">
-                  <div className="flex items-start gap-2">
-                    <div className={clsx('w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0', typeColors[n.notification_type]?.replace('text-', 'bg-') || 'bg-brand-gray')} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-white">{n.title}</p>
-                      <p className="text-xs text-brand-gray mt-0.5 line-clamp-2">{n.message}</p>
-                      <p className="text-xs text-brand-gray/50 mt-1">{formatDateTime(n.created_at)}</p>
+              notifications.map(n => {
+                const isClickable = !!(n.related_client_id || n.related_submission_id)
+                return (
+                  <div
+                    key={n.id}
+                    onClick={() => isClickable && handleNotificationClick(n)}
+                    className={clsx(
+                      'px-4 py-3 border-b border-brand-gray-border/50 hover:bg-brand-black-soft transition-colors',
+                      isClickable && 'cursor-pointer'
+                    )}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className={clsx('w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0', typeColors[n.notification_type]?.replace('text-', 'bg-') || 'bg-brand-gray')} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-white">{n.title}</p>
+                        <p className="text-xs text-brand-gray mt-0.5 line-clamp-2">{n.message}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <p className="text-xs text-brand-gray/50">{formatDateTime(n.created_at)}</p>
+                          {isClickable && (
+                            <p className="text-xs text-brand-yellow">View →</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         </div>
