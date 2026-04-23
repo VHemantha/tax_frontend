@@ -5,7 +5,7 @@ import PageHeader from '../../components/common/PageHeader'
 import {
   CheckCircle, Banknote, Phone, ArrowLeft, Clock,
   FileText, TrendingUp, Home, Car, Landmark, PieChart,
-  Wallet, Package, Building2, AlertTriangle, ChevronDown, ChevronRight
+  Wallet, Package, Building2, AlertTriangle, ChevronDown, ChevronRight, Download
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '../../utils/format'
 import toast from 'react-hot-toast'
@@ -158,6 +158,20 @@ export default function ClientConfirmation() {
         <button onClick={() => navigate('/client/dashboard')} className="btn-primary">Back to Dashboard</button>
       </div>
     )
+  }
+
+  async function downloadPdf() {
+    try {
+      const res = await api.get(`/tax/submissions/${submissionId}/pdf/`, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Tax_Return_${submission?.tax_year_label?.replace(/\//g, '-')}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('PDF is not available yet. Please wait for payment confirmation.')
+    }
   }
 
   // ── Full tax computation + assets & liabilities review ──
@@ -376,8 +390,11 @@ export default function ClientConfirmation() {
           <p className="text-sm text-brand-gray mb-4">
             By confirming, you acknowledge that the tax computation and all asset/liability details above are correct and authorise your consultant to proceed with the final submission.
           </p>
-          <div className="flex gap-3 justify-end">
+          <div className="flex gap-3 justify-end flex-wrap">
             <button onClick={() => navigate('/client/dashboard')} className="btn-secondary">Later</button>
+            <button onClick={downloadPdf} className="btn-secondary flex items-center gap-2">
+              <Download size={14} /> Download PDF
+            </button>
             <button
               onClick={() => finalConfirmMutation.mutate()}
               disabled={finalConfirmMutation.isPending}
@@ -387,6 +404,32 @@ export default function ClientConfirmation() {
                 ? <><span className="w-4 h-4 border-2 border-brand-black border-t-transparent rounded-full animate-spin" />Confirming...</>
                 : <><CheckCircle size={15} /> Confirm &amp; Authorise</>
               }
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // client_confirmed / archived — show completion screen with download
+  if (['client_confirmed', 'archived'].includes(submission?.status)) {
+    return (
+      <div className="max-w-2xl mx-auto animate-fade-in">
+        <button onClick={() => navigate('/client/dashboard')} className="btn-ghost mb-4 text-sm">
+          <ArrowLeft size={15} /> Back to Dashboard
+        </button>
+        <div className="card text-center py-10">
+          <CheckCircle size={52} className="text-brand-success mx-auto mb-4" />
+          <p className="text-white text-xl font-bold mb-1">Tax Return Confirmed</p>
+          <p className="text-sm text-brand-gray mb-6">
+            You have confirmed your tax return for {submission?.tax_year_label}. Your consultant will complete the final filing.
+          </p>
+          <div className="flex gap-3 justify-center flex-wrap">
+            <button onClick={() => navigate('/client/dashboard')} className="btn-secondary">
+              Back to Dashboard
+            </button>
+            <button onClick={downloadPdf} className="btn-primary flex items-center gap-2">
+              <Download size={15} /> Download Tax Return PDF
             </button>
           </div>
         </div>

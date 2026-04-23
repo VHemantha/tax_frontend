@@ -7,7 +7,7 @@ import StatusBadge from '../../components/common/StatusBadge'
 import PageHeader from '../../components/common/PageHeader'
 import {
   FileText, Plus, Clock, CheckCircle, AlertCircle, ArrowRight,
-  TrendingUp, Calendar, Bell, ChevronRight, Lock, Unlock
+  TrendingUp, Calendar, Bell, ChevronRight, Lock, Unlock, Download
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -62,6 +62,20 @@ export default function ClientDashboard() {
 
   const activeYear = taxYears.find(y => y.is_active)
   const currentSubmission = submissions.find(s => s.tax_year === activeYear?.id)
+
+  async function downloadPdf(sub) {
+    try {
+      const res = await api.get(`/tax/submissions/${sub.id}/pdf/`, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Tax_Return_${sub.tax_year_label?.replace(/\//g, '-')}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('PDF not available yet. Please wait for payment confirmation.')
+    }
+  }
 
   const statusIcon = (status) => {
     const icons = {
@@ -233,6 +247,14 @@ export default function ClientDashboard() {
                         Review &amp; Confirm <ChevronRight size={14} />
                       </button>
                     )}
+                    {['client_confirmed', 'archived'].includes(currentSubmission.status) && (
+                      <button
+                        onClick={() => downloadPdf(currentSubmission)}
+                        className="btn-primary flex items-center gap-2"
+                      >
+                        <Download size={14} /> Download PDF
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <button
@@ -282,6 +304,7 @@ export default function ClientDashboard() {
                   <th className="table-header text-right">Income</th>
                   <th className="table-header text-right">Tax Payable</th>
                   <th className="table-header text-right rounded-tr-lg">Submitted</th>
+                  <th className="table-header text-center rounded-tr-lg">PDF</th>
                 </tr>
               </thead>
               <tbody>
@@ -305,6 +328,17 @@ export default function ClientDashboard() {
                         {paymentPending ? '—' : formatCurrency(sub.net_tax_payable)}
                       </td>
                       <td className="table-cell text-right text-brand-gray text-xs">{formatDateTime(sub.submitted_at)}</td>
+                      <td className="table-cell text-center">
+                        {sub.payment_status === 'paid' && (
+                          <button
+                            onClick={e => { e.stopPropagation(); downloadPdf(sub) }}
+                            className="text-brand-yellow hover:opacity-80 transition-opacity"
+                            title="Download PDF"
+                          >
+                            <Download size={15} />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
@@ -393,6 +427,14 @@ export default function ClientDashboard() {
                             className="btn-primary text-xs py-1 px-3"
                           >
                             Review <ChevronRight size={11} />
+                          </button>
+                        )}
+                        {['client_confirmed', 'archived'].includes(existing.status) && (
+                          <button
+                            onClick={() => downloadPdf(existing)}
+                            className="btn-primary text-xs py-1 px-3 flex items-center gap-1"
+                          >
+                            <Download size={11} /> PDF
                           </button>
                         )}
                       </div>
