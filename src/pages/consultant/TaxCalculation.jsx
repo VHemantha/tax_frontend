@@ -1345,13 +1345,43 @@ export default function TaxCalculation() {
                   <span className="text-xs font-mono text-white">({formatCurrency(s.tax_credits.partnership_tax_credit)})</span>
                 </div>
               )}
-              {parseFloat(s?.foreign_income?.foreign_tax_paid || 0) > 0 && (
-                <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
-                  <span className="text-xs text-brand-gray">Foreign Tax Paid</span>
-                  <span className="text-xs font-mono text-white">({formatCurrency(s.foreign_income.foreign_tax_paid)})</span>
-                </div>
-              )}
               <EditableAmount label="Less: Total Tax Credits" value={val('total_tax_credits')} fieldKey="total_tax_credits" onSave={handleFieldUpdate} indent />
+
+              {/* Foreign Income Tax @ 15% flat — shown separately above balance */}
+              {(() => {
+                const fiAmount = parseFloat(s?.foreign_income?.employment_service_fee || 0) + parseFloat(s?.foreign_income?.other_foreign_income || 0)
+                const fiPaid = parseFloat(s?.foreign_income?.foreign_tax_paid || 0)
+                const fiTax = parseFloat(liveVal('foreign_income_tax') ?? val('foreign_income_tax') ?? 0)
+                if (fiAmount <= 0) return null
+                return (
+                  <div className="mt-3 border border-brand-yellow/20 rounded-xl overflow-hidden">
+                    <div className="bg-brand-yellow/5 px-3 py-2 border-b border-brand-yellow/10">
+                      <p className="text-xs text-brand-yellow font-semibold uppercase tracking-wider">Foreign Income Tax (Flat 15%)</p>
+                    </div>
+                    <div className="px-3 py-2 space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-brand-gray">Foreign Income</span>
+                        <span className="font-mono text-white">{formatCurrency(fiAmount)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-brand-gray">Tax @ 15%</span>
+                        <span className="font-mono text-white">{formatCurrency(fiAmount * 0.15)}</span>
+                      </div>
+                      {fiPaid > 0 && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-brand-gray pl-2">Less: Foreign Tax Paid</span>
+                          <span className="font-mono text-white">({formatCurrency(fiPaid)})</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-xs font-semibold border-t border-brand-yellow/20 pt-1 mt-1">
+                        <span className="text-white">Net Foreign Tax Payable</span>
+                        <EditableAmount label="" value={val('foreign_income_tax')} fieldKey="foreign_income_tax" onSave={handleFieldUpdate} />
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
               <div className="mt-4 bg-brand-yellow/10 border border-brand-yellow/30 rounded-xl p-4">
                 <p className="text-xs text-brand-gray uppercase tracking-wider mb-2">BALANCE TAX PAYABLE</p>
                 <EditableAmount label="" value={val('net_tax_payable')} fieldKey="net_tax_payable" onSave={handleFieldUpdate} />
