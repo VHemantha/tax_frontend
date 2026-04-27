@@ -117,10 +117,13 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
 
   const { register: regIncome, handleSubmit: handleIncome, reset: resetIncome, watch: watchIncome } = useForm()
   const { register: regQP,     handleSubmit: handleQP,     reset: resetQP }     = useForm()
-  const { register: regTC,     handleSubmit: handleTC,     reset: resetTC }     = useForm()
+  const { register: regTC,     handleSubmit: handleTC,     reset: resetTC,     setValue: setValueTC } = useForm()
 
-  const watchedRentGross = watchIncome('rent_gross')
-  const liveRentRelief   = Math.round(parseFloat(watchedRentGross || 0) * 0.25 * 100) / 100
+  const watchedRentGross   = watchIncome('rent_gross')
+  const watchedRentWHT     = watchIncome('rent_wht')
+  const watchedInterestWHT = watchIncome('interest_wht')
+  const liveRentRelief     = Math.round(parseFloat(watchedRentGross || 0) * 0.25 * 100) / 100
+  const liveWHTTotal       = Math.round((parseFloat(watchedRentWHT || 0) + parseFloat(watchedInterestWHT || 0)) * 100) / 100
 
   useEffect(() => {
     const d = queries
@@ -159,6 +162,12 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
       partnership_tax_credit:    queries.tc.data?.partnership_tax_credit || '',
     })
   }, [queries.tc.data])
+
+  /* Auto-populate WHT credit from income section WHT fields */
+  useEffect(() => {
+    const total = parseFloat(watchedRentWHT || 0) + parseFloat(watchedInterestWHT || 0)
+    setValueTC('wht_rent_interest_service', total > 0 ? total.toFixed(2) : '')
+  }, [watchedRentWHT, watchedInterestWHT])
 
   async function saveIncome(data) {
     setSaving(true)
@@ -477,8 +486,19 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
               <FieldRow label="APIT on Salary" hint="As per T10 certificate from employer">
                 <AmountInput registration={regTC('apit_on_salary')} disabled={isReadOnly} />
               </FieldRow>
-              <FieldRow label="WHT on Rent / Interest / Service Fees" hint="Total WHT as per WHT certificates">
-                <AmountInput registration={regTC('wht_rent_interest_service')} disabled={isReadOnly} />
+              <FieldRow label="WHT on Rent / Interest / Service Fees" hint="Auto-calculated from Rent WHT + Interest WHT entered above">
+                <div className="space-y-2">
+                  <AmountInput registration={regTC('wht_rent_interest_service')} disabled />
+                  {liveWHTTotal > 0 && (
+                    <ReliefPill
+                      label="WHT (Rent + Interest — auto)"
+                      value={`Rs. ${liveWHTTotal.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    />
+                  )}
+                  {liveWHTTotal === 0 && (
+                    <p className="text-xs text-brand-gray">Enter WHT amounts in Rent Income and Interest Income above</p>
+                  )}
+                </div>
               </FieldRow>
               <FieldRow label="Partnership Tax Credit" hint="Tax credit passed through from partnership">
                 <AmountInput registration={regTC('partnership_tax_credit')} disabled={isReadOnly} />
