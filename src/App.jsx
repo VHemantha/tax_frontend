@@ -30,6 +30,7 @@ import AccountsDashboard from './pages/accounts/Dashboard'
 import SuperAdminLayout from './components/layout/SuperAdminLayout'
 import SuperAdminDashboard from './pages/superadmin/Dashboard'
 import SuperAdminClientList from './pages/superadmin/ClientList'
+import ConsultantManagement from './pages/superadmin/ConsultantManagement'
 
 export default function App() {
   return (
@@ -75,8 +76,8 @@ export default function App() {
             <Route element={<SuperAdminLayout />}>
               <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
               <Route path="/super-admin/clients" element={<SuperAdminClientList />} />
-              {/* Reuses the same RegisterClient form — shows consultant selector for super_admin role */}
               <Route path="/super-admin/clients/register" element={<RegisterClient />} />
+              <Route path="/super-admin/consultants" element={<ConsultantManagement />} />
             </Route>
           </Route>
 
