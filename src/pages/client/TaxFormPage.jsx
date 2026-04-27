@@ -6,20 +6,22 @@ import PageHeader from '../../components/common/PageHeader'
 import IncomeSection from './form-sections/IncomeSection'
 import AssetsSection from './form-sections/AssetsSection'
 import LiabilitiesSection from './form-sections/LiabilitiesSection'
+import CashFlowSection from './form-sections/CashFlowSection'
 import DeclarantSection from './form-sections/DeclarantSection'
 import ReviewSection from './form-sections/ReviewSection'
 import {
-  DollarSign, Building2, CreditCard, User, FileCheck, CheckCircle
+  DollarSign, Building2, CreditCard, User, FileCheck, CheckCircle, BarChart2
 } from 'lucide-react'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 
 const STEPS = [
-  { id: 'income',      label: 'Income & Expenses',  icon: DollarSign,  shortLabel: 'Income' },
-  { id: 'assets',      label: 'Assets',             icon: Building2,   shortLabel: 'Assets' },
-  { id: 'liabilities', label: 'Liabilities',        icon: CreditCard,  shortLabel: 'Liabilities' },
-  { id: 'declarant',   label: 'Declarant Details',  icon: User,        shortLabel: 'Declarant' },
-  { id: 'review',      label: 'Review & Submit',    icon: FileCheck,   shortLabel: 'Review' },
+  { id: 'income',      label: 'Income & Expenses',         icon: DollarSign,  shortLabel: 'Income' },
+  { id: 'assets',      label: 'Assets',                    icon: Building2,   shortLabel: 'Assets' },
+  { id: 'liabilities', label: 'Liabilities',               icon: CreditCard,  shortLabel: 'Liabilities' },
+  { id: 'cashflow',    label: 'Receipts & Payments',       icon: BarChart2,   shortLabel: 'Cash Flow' },
+  { id: 'declarant',   label: 'Declarant Details',         icon: User,        shortLabel: 'Declarant' },
+  { id: 'review',      label: 'Review & Submit',           icon: FileCheck,   shortLabel: 'Review' },
 ]
 
 export default function TaxFormPage() {
@@ -160,8 +162,9 @@ export default function TaxFormPage() {
         {currentStep === 0 && <IncomeSection {...sharedProps} />}
         {currentStep === 1 && <AssetsSection {...sharedProps} />}
         {currentStep === 2 && <LiabilitiesSection {...sharedProps} />}
-        {currentStep === 3 && <DeclarantSection {...sharedProps} />}
-        {currentStep === 4 && <ReviewSection {...sharedProps} />}
+        {currentStep === 3 && <CashFlowSection {...sharedProps} />}
+        {currentStep === 4 && <DeclarantSection {...sharedProps} />}
+        {currentStep === 5 && <ReviewSection {...sharedProps} />}
       </div>
     </div>
   )

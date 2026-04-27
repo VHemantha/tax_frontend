@@ -1,0 +1,368 @@
+import { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import api from '../../../services/api'
+import { ArrowRight, ArrowLeft, TrendingUp, TrendingDown, Landmark, Plus, Trash2, Save } from 'lucide-react'
+import toast from 'react-hot-toast'
+import clsx from 'clsx'
+
+const D = (v) => parseFloat(v || 0)
+const fmt = (v) => D(v).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+/* ── Numeric input row ── */
+function AmountRow({ label, fieldKey, value, onChange, readOnly }) {
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-brand-gray-border/40 gap-3">
+      <span className="text-sm text-brand-gray flex-1">{label}</span>
+      {readOnly ? (
+        <span className="text-sm font-mono text-white w-36 text-right">{fmt(value)}</span>
+      ) : (
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={value || ''}
+          onChange={e => onChange(fieldKey, e.target.value)}
+          placeholder="0.00"
+          className="input-field w-36 text-right text-sm py-1.5 px-2"
+        />
+      )}
+    </div>
+  )
+}
+
+/* ── Section heading ── */
+function SectionHead({ icon: Icon, title, color = 'text-brand-yellow' }) {
+  return (
+    <div className={clsx('flex items-center gap-2 pt-4 pb-2 border-b-2 border-brand-gray-border mb-1', color)}>
+      <Icon size={16} className={color} />
+      <span className="text-sm font-bold uppercase tracking-wider">{title}</span>
+    </div>
+  )
+}
+
+/* ── Bank account list (opening/closing favourable or overdraft) ── */
+function BankList({ label, entries, onChange, readOnly }) {
+  function addRow() {
+    onChange([...entries, { bank_name: '', account_no: '', amount: '' }])
+  }
+  function removeRow(i) {
+    onChange(entries.filter((_, idx) => idx !== i))
+  }
+  function updateRow(i, key, val) {
+    const next = entries.map((r, idx) => idx === i ? { ...r, [key]: val } : r)
+    onChange(next)
+  }
+
+  return (
+    <div className="mb-3">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-brand-gray font-medium">{label}</span>
+        {!readOnly && (
+          <button type="button" onClick={addRow} className="text-xs text-brand-yellow hover:opacity-80 flex items-center gap-1">
+            <Plus size={11} /> Add Bank
+          </button>
+        )}
+      </div>
+      {entries.length === 0 && (
+        <p className="text-xs text-brand-gray italic py-1">No entries</p>
+      )}
+      {entries.map((row, i) => (
+        <div key={i} className="grid grid-cols-12 gap-2 mb-1.5 items-center">
+          <input
+            className="input-field col-span-5 text-sm py-1.5 px-2"
+            placeholder="Bank Name"
+            value={row.bank_name}
+            readOnly={readOnly}
+            onChange={e => updateRow(i, 'bank_name', e.target.value)}
+          />
+          <input
+            className="input-field col-span-4 text-sm py-1.5 px-2"
+            placeholder="Acc. No."
+            value={row.account_no}
+            readOnly={readOnly}
+            onChange={e => updateRow(i, 'account_no', e.target.value)}
+          />
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            className="input-field col-span-2 text-sm py-1.5 px-2 text-right"
+            placeholder="0.00"
+            value={row.amount}
+            readOnly={readOnly}
+            onChange={e => updateRow(i, 'amount', e.target.value)}
+          />
+          {!readOnly && (
+            <button type="button" onClick={() => removeRow(i)} className="col-span-1 text-brand-red hover:opacity-80 flex justify-center">
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* ── Subtotal row ── */
+function SubtotalRow({ label, value, highlight }) {
+  return (
+    <div className={clsx(
+      'flex items-center justify-between py-2 px-3 rounded-lg mt-2 mb-1',
+      highlight ? 'bg-brand-yellow/10 border border-brand-yellow/30' : 'bg-brand-black-soft border border-brand-gray-border'
+    )}>
+      <span className={clsx('text-sm font-semibold', highlight ? 'text-brand-yellow' : 'text-white')}>{label}</span>
+      <span className={clsx('font-mono text-sm font-bold', highlight ? 'text-brand-yellow' : 'text-white')}>
+        Rs. {fmt(value)}
+      </span>
+    </div>
+  )
+}
+
+/* ── Main component ── */
+export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPrev }) {
+  const qc = useQueryClient()
+
+  const { data: saved } = useQuery({
+    queryKey: ['cash-flow', submissionId],
+    queryFn: () => api.get(`/tax/submissions/${submissionId}/cash-flow/`).then(r => r.data),
+  })
+
+  const DEFAULTS = {
+    opening_cash_in_hand: '',
+    opening_favourable_banks: [],
+    opening_overdraft_banks: [],
+    receipt_employment_income: '',
+    receipt_interest_fds: '',
+    receipt_interest_savings: '',
+    receipt_rent_income: '',
+    receipt_tb_securities: '',
+    receipt_sale_shares: '',
+    receipt_dividend_income: '',
+    receipt_drawings_sole_partner: '',
+    receipt_bank_loan: '',
+    receipt_other_loans: '',
+    receipt_sale_land_building: '',
+    receipt_sale_motor_vehicle: '',
+    receipt_sale_other_assets: '',
+    payment_purchase_land_building: '',
+    payment_purchase_motor_vehicle: '',
+    payment_purchase_other_assets: '',
+    payment_repayment_bank_loan: '',
+    payment_lease_rentals: '',
+    payment_jewellery_gems: '',
+    payment_other_loans: '',
+    payment_wht: '',
+    payment_income_tax: '',
+    payment_apit: '',
+    payment_investment_shares: '',
+    payment_loans_given_others: '',
+    closing_cash_in_hand: '',
+    closing_favourable_banks: [],
+    closing_overdraft_banks: [],
+    living_expenses_year: '',
+  }
+
+  const [form, setForm] = useState(DEFAULTS)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (saved && saved.id) setForm({ ...DEFAULTS, ...saved })
+  }, [saved])
+
+  function set(key, val) {
+    setForm(f => ({ ...f, [key]: val }))
+  }
+
+  /* ── Computed totals ── */
+  const openingBankFav  = form.opening_favourable_banks.reduce((s, r) => s + D(r.amount), 0)
+  const openingBankOD   = form.opening_overdraft_banks.reduce((s, r) => s + D(r.amount), 0)
+  const openingTotal    = D(form.opening_cash_in_hand) + openingBankFav - openingBankOD
+
+  const totalReceipts =
+    D(form.receipt_employment_income) + D(form.receipt_interest_fds) +
+    D(form.receipt_interest_savings) + D(form.receipt_rent_income) +
+    D(form.receipt_tb_securities) + D(form.receipt_sale_shares) +
+    D(form.receipt_dividend_income) + D(form.receipt_drawings_sole_partner) +
+    D(form.receipt_bank_loan) + D(form.receipt_other_loans) +
+    D(form.receipt_sale_land_building) + D(form.receipt_sale_motor_vehicle) +
+    D(form.receipt_sale_other_assets)
+
+  const totalCashAvailable = openingTotal + totalReceipts
+
+  const totalPayments =
+    D(form.payment_purchase_land_building) + D(form.payment_purchase_motor_vehicle) +
+    D(form.payment_purchase_other_assets) + D(form.payment_repayment_bank_loan) +
+    D(form.payment_lease_rentals) + D(form.payment_jewellery_gems) +
+    D(form.payment_other_loans) + D(form.payment_wht) +
+    D(form.payment_income_tax) + D(form.payment_apit) +
+    D(form.payment_investment_shares) + D(form.payment_loans_given_others)
+
+  const netCashAvailable = totalCashAvailable - totalPayments
+
+  const closingBankFav = form.closing_favourable_banks.reduce((s, r) => s + D(r.amount), 0)
+  const closingBankOD  = form.closing_overdraft_banks.reduce((s, r) => s + D(r.amount), 0)
+  const closingTotal   = D(form.closing_cash_in_hand) + closingBankFav - closingBankOD
+
+  const livingPerMonth = D(form.living_expenses_year) / 12
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await api.post(`/tax/submissions/${submissionId}/cash-flow/`, form)
+      qc.invalidateQueries(['cash-flow', submissionId])
+      toast.success('Cash flow statement saved')
+    } catch {
+      toast.error('Failed to save')
+    }
+    setSaving(false)
+  }
+
+  async function handleSaveAndNext() {
+    await handleSave()
+    onNext()
+  }
+
+  const ro = isReadOnly
+
+  return (
+    <div className="space-y-2">
+
+      {/* ── Opening Balances ── */}
+      <div className="card">
+        <SectionHead icon={Landmark} title="Opening Balances — as at 1st April" />
+
+        <AmountRow label="Cash in Hand" fieldKey="opening_cash_in_hand" value={form.opening_cash_in_hand} onChange={set} readOnly={ro} />
+
+        <div className="mt-3">
+          <BankList
+            label="Cash at Bank — Favourable Balances"
+            entries={form.opening_favourable_banks}
+            onChange={v => set('opening_favourable_banks', v)}
+            readOnly={ro}
+          />
+          <BankList
+            label="(–) Cash at Bank — Overdraft"
+            entries={form.opening_overdraft_banks}
+            onChange={v => set('opening_overdraft_banks', v)}
+            readOnly={ro}
+          />
+        </div>
+
+        <SubtotalRow label="Opening Cash Balance" value={openingTotal} />
+      </div>
+
+      {/* ── Receipts ── */}
+      <div className="card">
+        <SectionHead icon={TrendingUp} title="Receipts During the Year" color="text-brand-success" />
+
+        {[
+          ['receipt_employment_income',     'Employment Income'],
+          ['receipt_interest_fds',          'Interest Income on Fixed Deposits'],
+          ['receipt_interest_savings',      'Interest Income on Savings Accounts'],
+          ['receipt_rent_income',           'Rent Income'],
+          ['receipt_tb_securities',         'Income on Sale of T/B and Securities'],
+          ['receipt_sale_shares',           'Sale of Shares'],
+          ['receipt_dividend_income',       'Dividend Income'],
+          ['receipt_drawings_sole_partner', 'Drawings from Sole / Partnership Businesses'],
+          ['receipt_bank_loan',             'Bank Loan Received'],
+          ['receipt_other_loans',           'Other Loans Received'],
+          ['receipt_sale_land_building',    'Sale of Land or Building'],
+          ['receipt_sale_motor_vehicle',    'Sale of Motor Vehicle'],
+          ['receipt_sale_other_assets',     'Sale of Other Assets'],
+        ].map(([key, label]) => (
+          <AmountRow key={key} label={label} fieldKey={key} value={form[key]} onChange={set} readOnly={ro} />
+        ))}
+
+        <SubtotalRow label="Total Receipts" value={totalReceipts} />
+        <SubtotalRow label="Total Cash Available" value={totalCashAvailable} highlight />
+      </div>
+
+      {/* ── Payments ── */}
+      <div className="card">
+        <SectionHead icon={TrendingDown} title="Payments During the Year" color="text-brand-red" />
+
+        {[
+          ['payment_purchase_land_building',  'Purchase of Land or Building'],
+          ['payment_purchase_motor_vehicle',  'Purchase of Motor Vehicle'],
+          ['payment_purchase_other_assets',   'Purchase of Other Assets'],
+          ['payment_repayment_bank_loan',     'Repayment of Bank Loan'],
+          ['payment_lease_rentals',           'Payment of Lease Rentals'],
+          ['payment_jewellery_gems',          'Purchase of Jewellery / Gems / Silver'],
+          ['payment_other_loans',             'Payment of Other Loans'],
+          ['payment_wht',                     'WHT'],
+          ['payment_income_tax',              'Income Tax Payments'],
+          ['payment_apit',                    'APIT'],
+          ['payment_investment_shares',       'Investment on Shares'],
+          ['payment_loans_given_others',      'Loans Given to Others'],
+        ].map(([key, label]) => (
+          <AmountRow key={key} label={label} fieldKey={key} value={form[key]} onChange={set} readOnly={ro} />
+        ))}
+
+        <SubtotalRow label="Total Payments" value={totalPayments} />
+        <SubtotalRow label="Net Cash Available — as at 31st March" value={netCashAvailable} highlight />
+      </div>
+
+      {/* ── Closing Balances ── */}
+      <div className="card">
+        <SectionHead icon={Landmark} title="Closing Balances — as at 31st March" />
+
+        <AmountRow label="Cash in Hand" fieldKey="closing_cash_in_hand" value={form.closing_cash_in_hand} onChange={set} readOnly={ro} />
+
+        <div className="mt-3">
+          <BankList
+            label="Cash at Banks — Favourable Balances"
+            entries={form.closing_favourable_banks}
+            onChange={v => set('closing_favourable_banks', v)}
+            readOnly={ro}
+          />
+          <BankList
+            label="(–) Cash at Banks — Overdraft"
+            entries={form.closing_overdraft_banks}
+            onChange={v => set('closing_overdraft_banks', v)}
+            readOnly={ro}
+          />
+        </div>
+
+        <SubtotalRow label="Closing Cash Balance" value={closingTotal} highlight />
+
+        {/* Reconciliation hint */}
+        {Math.abs(netCashAvailable - closingTotal) > 1 && (closingTotal > 0 || netCashAvailable > 0) && (
+          <p className="text-xs text-brand-red mt-2">
+            Note: Net cash available (Rs. {fmt(netCashAvailable)}) does not match closing balance (Rs. {fmt(closingTotal)}). Please review your entries.
+          </p>
+        )}
+      </div>
+
+      {/* ── Living Expenses ── */}
+      <div className="card">
+        <SectionHead icon={TrendingDown} title="Living Expenses" color="text-brand-gray" />
+
+        <AmountRow label="Living Expenses for the Year (Rs.)" fieldKey="living_expenses_year" value={form.living_expenses_year} onChange={set} readOnly={ro} />
+
+        {D(form.living_expenses_year) > 0 && (
+          <div className="flex items-center justify-between py-2 border-b border-brand-gray-border/40">
+            <span className="text-sm text-brand-gray">Living Expenses per Month (÷ 12)</span>
+            <span className="text-sm font-mono text-brand-yellow font-semibold">Rs. {fmt(livingPerMonth)}</span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Actions ── */}
+      <div className="flex justify-between items-center pt-2">
+        <button type="button" onClick={onPrev} className="btn-secondary">
+          <ArrowLeft size={15} /> Back
+        </button>
+        <div className="flex gap-3">
+          {!ro && (
+            <button type="button" onClick={handleSave} disabled={saving} className="btn-secondary">
+              <Save size={14} /> {saving ? 'Saving…' : 'Save'}
+            </button>
+          )}
+          <button type="button" onClick={ro ? onNext : handleSaveAndNext} disabled={saving} className="btn-primary">
+            Next: Declarant Details <ArrowRight size={15} />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -170,7 +170,7 @@ export default function LiabilitiesSection({ submissionId, documents, onUpload, 
           <ChevronLeft size={15} /> Previous
         </button>
         <button type="button" onClick={onNext} className="btn-primary">
-          Next: Declarant Details <ChevronRight size={15} />
+          Next: Receipts & Payments <ChevronRight size={15} />
         </button>
       </div>
 
