@@ -131,6 +131,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
       local_amount:                   d.local.data?.amount || '',
       employer_name:                  d.local.data?.employer_name || '',
       foreign_employment_service_fee: d.foreign.data?.employment_service_fee || '',
+      foreign_business_income:        d.foreign.data?.foreign_business_income || '',
       foreign_other:                  d.foreign.data?.other_foreign_income || '',
       terminal_amount:                d.terminal.data?.amount || '',
       terminal_benefit_types:         d.terminal.data?.benefit_types || '',
@@ -174,7 +175,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
     try {
       await Promise.all([
         api.post(`/tax/submissions/${submissionId}/income/local-employment/`,   { amount: data.local_amount || 0, employer_name: data.employer_name }),
-        api.post(`/tax/submissions/${submissionId}/income/foreign/`,            { employment_service_fee: data.foreign_employment_service_fee || 0, other_foreign_income: data.foreign_other || 0 }),
+        api.post(`/tax/submissions/${submissionId}/income/foreign/`,            { employment_service_fee: data.foreign_employment_service_fee || 0, foreign_business_income: data.foreign_business_income || 0, other_foreign_income: data.foreign_other || 0 }),
         api.post(`/tax/submissions/${submissionId}/income/terminal-benefit/`,   { amount: data.terminal_amount || 0, benefit_types: data.terminal_benefit_types }),
         api.post(`/tax/submissions/${submissionId}/income/rent/`,               { gross_amount: data.rent_gross || 0, wht_deducted: data.rent_wht || 0 }),
         api.post(`/tax/submissions/${submissionId}/income/interest/`,           { amount: data.interest_amount || 0, wht_deducted: data.interest_wht || 0 }),
@@ -239,6 +240,9 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
             <SubSection icon={Globe} title="Foreign Income">
               <FieldRow label="Employment / Service Fee" hint="Foreign employment or contract income">
                 <AmountInput registration={regIncome('foreign_employment_service_fee')} disabled={isReadOnly} />
+              </FieldRow>
+              <FieldRow label="Foreign Business Income" hint="Profit from business carried on outside Sri Lanka">
+                <AmountInput registration={regIncome('foreign_business_income')} disabled={isReadOnly} />
               </FieldRow>
               <FieldRow label="Other Foreign Source Income" hint="Rent, interest, dividends from abroad">
                 <AmountInput registration={regIncome('foreign_other')} disabled={isReadOnly} />
