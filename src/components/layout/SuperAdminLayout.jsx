@@ -35,7 +35,7 @@ export default function SuperAdminLayout() {
       )}>
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-brand-gray-border">
-          <img src="/logo.jpg" alt="OVERDIME - TMS" className="h-9 w-auto object-contain" />
+          <img src="/logo.png" alt="OVERDIME - TMS" className="h-9 w-auto object-contain" />
           <p className="text-xs text-brand-yellow">Super Admin</p>
         </div>
 
