@@ -38,7 +38,7 @@ export default function Login() {
         <div className="bg-brand-black-light border border-brand-gray-border rounded-2xl shadow-card overflow-hidden">
           {/* Header banner */}
           <div className="bg-gradient-to-r from-brand-black to-brand-black-mid px-8 py-8 text-center border-b border-brand-gray-border">
-            <h1 className="text-2xl font-bold text-brand-yellow tracking-wide mb-2">OVERDIME - TMS</h1>
+            <img src="/logo.jpg" alt="OVERDIME - TMS" className="h-16 w-auto object-contain mx-auto mb-4" />
             <p className="text-brand-gray text-sm mt-1">Y/A 2025/2026 · Secure Client Portal</p>
           </div>
 
