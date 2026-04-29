@@ -30,7 +30,7 @@ export default function AccountsDeptLayout() {
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       )}>
         <div className="flex items-center gap-3 px-6 py-5 border-b border-brand-gray-border">
-          <img src="/logo.png" alt="DPR-TMS" className="h-9 w-auto object-contain" />
+          <img src="/logo.jpg" alt="DPR-TMS" className="h-9 w-auto object-contain" />
           <p className="text-xs text-blue-400">Accounts Division</p>
         </div>
 
