@@ -7,7 +7,7 @@ import StatusBadge from '../../components/common/StatusBadge'
 import PageHeader from '../../components/common/PageHeader'
 import {
   FileText, Plus, Clock, CheckCircle, AlertCircle, ArrowRight,
-  TrendingUp, Calendar, Bell, ChevronRight, Lock, Unlock, Download
+  TrendingUp, Calendar, Bell, ChevronRight, Lock, Unlock, Download, Eye
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -55,10 +55,12 @@ export default function ClientDashboard() {
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to submit request'),
   })
 
-  const getAccessStatus = (yearId) => {
+  const getAccessInfo = (yearId) => {
     const req = accessRequests.find(r => r.tax_year === yearId)
-    return req?.status || null
+    return req || null
   }
+
+  const getAccessStatus = (yearId) => getAccessInfo(yearId)?.status || null
 
   const activeYear = taxYears.find(y => y.is_active)
   const currentSubmission = submissions.find(s => s.tax_year === activeYear?.id)
@@ -303,20 +305,25 @@ export default function ClientDashboard() {
                   <th className="table-header text-left">Status</th>
                   <th className="table-header text-right">Income</th>
                   <th className="table-header text-right">Tax Payable</th>
-                  <th className="table-header text-right rounded-tr-lg">Submitted</th>
-                  <th className="table-header text-center rounded-tr-lg">PDF</th>
+                  <th className="table-header text-right">Submitted</th>
+                  <th className="table-header text-center rounded-tr-lg">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {submissions.map(sub => {
                   const paymentPending = ['awaiting_confirmation', 'confirmed'].includes(sub.status)
+                  const isPast = ['archived', 'client_confirmed'].includes(sub.status)
+                  const accessInfo = isPast ? getAccessInfo(sub.tax_year) : null
+                  const accessStatus = accessInfo?.status || null
+
                   return (
                     <tr
                       key={sub.id}
-                      className="table-row cursor-pointer"
+                      className={`table-row ${!isPast || accessStatus === 'approved' ? 'cursor-pointer' : ''}`}
                       onClick={() => {
                         if (['draft', 'info_requested'].includes(sub.status)) navigate(`/client/tax-form/${sub.id}`)
                         else if (['awaiting_confirmation', 'awaiting_client_review'].includes(sub.status)) navigate(`/client/confirm/${sub.id}`)
+                        else if (isPast && accessStatus === 'approved') navigate(`/client/tax-form/${sub.id}`)
                       }}
                     >
                       <td className="table-cell font-medium">{sub.tax_year_label}</td>
@@ -329,15 +336,54 @@ export default function ClientDashboard() {
                       </td>
                       <td className="table-cell text-right text-brand-gray text-xs">{formatDateTime(sub.submitted_at)}</td>
                       <td className="table-cell text-center">
-                        {sub.payment_status === 'paid' && (
-                          <button
-                            onClick={e => { e.stopPropagation(); downloadPdf(sub) }}
-                            className="text-brand-yellow hover:opacity-80 transition-opacity"
-                            title="Download PDF"
-                          >
-                            <Download size={15} />
-                          </button>
-                        )}
+                        <div className="flex items-center justify-center gap-2">
+                          {/* PDF download — always shown for paid */}
+                          {sub.payment_status === 'paid' && (
+                            <button
+                              onClick={e => { e.stopPropagation(); downloadPdf(sub) }}
+                              className="text-brand-yellow hover:opacity-80 transition-opacity"
+                              title="Download PDF"
+                            >
+                              <Download size={15} />
+                            </button>
+                          )}
+
+                          {/* View access control for past submissions */}
+                          {isPast && !accessStatus && (
+                            <button
+                              onClick={e => { e.stopPropagation(); requestAccess.mutate(sub.tax_year) }}
+                              disabled={requestAccess.isPending}
+                              className="text-xs text-brand-gray hover:text-brand-yellow transition-colors flex items-center gap-1"
+                              title="Request consultant approval to view"
+                            >
+                              <Lock size={12} /> Request View
+                            </button>
+                          )}
+                          {isPast && accessStatus === 'pending' && (
+                            <span className="text-xs text-brand-yellow flex items-center gap-1">
+                              <Clock size={12} /> Pending
+                            </span>
+                          )}
+                          {isPast && accessStatus === 'denied' && (
+                            <button
+                              onClick={e => { e.stopPropagation(); requestAccess.mutate(sub.tax_year) }}
+                              disabled={requestAccess.isPending}
+                              className="text-xs text-brand-red hover:opacity-80 transition-opacity"
+                              title="Request again"
+                            >
+                              Denied — Retry
+                            </button>
+                          )}
+                          {isPast && accessStatus === 'approved' && (
+                            <button
+                              onClick={e => { e.stopPropagation(); navigate(`/client/tax-form/${sub.id}`) }}
+                              className="text-xs text-brand-success hover:opacity-80 transition-opacity flex items-center gap-1"
+                              title="View submission"
+                            >
+                              <Eye size={12} /> View
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -348,13 +394,13 @@ export default function ClientDashboard() {
         </div>
       )}
 
-      {/* Previous Assessment Years */}
-      {taxYears.filter(y => !y.is_active).length > 0 && (
+      {/* Previous Assessment Years — only for years with no existing submission */}
+      {taxYears.filter(y => !y.is_active && !submissions.find(s => s.tax_year === y.id)).length > 0 && (
         <div className="mt-6">
           <h2 className="section-header mb-3"><Lock size={15} className="text-brand-gray" />Previous Assessment Years</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {taxYears.filter(y => !y.is_active).map(ty => {
-              const existing = submissions.find(s => s.tax_year === ty.id)
+            {taxYears.filter(y => !y.is_active && !submissions.find(s => s.tax_year === y.id)).map(ty => {
+              const existing = null
               const accessStatus = getAccessStatus(ty.id)
               const isApproved = accessStatus === 'approved'
 
@@ -408,41 +454,7 @@ export default function ClientDashboard() {
                     }
                   </div>
 
-                  {existing ? (
-                    /* Submission exists — show status and action */
-                    <>
-                      <div className="flex items-center justify-between mb-2">
-                        <StatusBadge status={existing.status} />
-                        {['draft', 'info_requested'].includes(existing.status) && (
-                          <button
-                            onClick={() => navigate(`/client/tax-form/${existing.id}`)}
-                            className="btn-primary text-xs py-1 px-3"
-                          >
-                            Continue <ArrowRight size={11} />
-                          </button>
-                        )}
-                        {existing.status === 'awaiting_client_review' && (
-                          <button
-                            onClick={() => navigate(`/client/confirm/${existing.id}`)}
-                            className="btn-primary text-xs py-1 px-3"
-                          >
-                            Review <ChevronRight size={11} />
-                          </button>
-                        )}
-                        {['client_confirmed', 'archived'].includes(existing.status) && (
-                          <button
-                            onClick={() => downloadPdf(existing)}
-                            className="btn-primary text-xs py-1 px-3 flex items-center gap-1"
-                          >
-                            <Download size={11} /> PDF
-                          </button>
-                        )}
-                      </div>
-                      {!['awaiting_confirmation', 'confirmed'].includes(existing.status) && parseFloat(existing.net_tax_payable) > 0 && (
-                        <p className="text-xs text-brand-gray">Net Tax: <span className="font-mono text-brand-yellow">{formatCurrency(existing.net_tax_payable)}</span></p>
-                      )}
-                    </>
-                  ) : isApproved ? (
+                  {isApproved ? (
                     /* Approved but no submission yet — let client start */
                     <div className="mt-1">
                       <p className="text-xs text-brand-success mb-2">Access approved — start your submission</p>

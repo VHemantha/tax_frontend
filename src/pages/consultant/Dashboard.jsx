@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
@@ -7,8 +7,9 @@ import StatusBadge from '../../components/common/StatusBadge'
 import PageHeader from '../../components/common/PageHeader'
 import {
   Users, FileText, Clock, CheckCircle, AlertCircle, TrendingUp,
-  ArrowRight, UserPlus, Bell, BarChart3, Send
+  ArrowRight, UserPlus, Bell, BarChart3, Send, Eye, X
 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts'
@@ -16,6 +17,7 @@ import {
 export default function ConsultantDashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const qc = useQueryClient()
 
   const { data: stats } = useQuery({
     queryKey: ['dashboard-stats'],
@@ -30,6 +32,23 @@ export default function ConsultantDashboard() {
   const { data: notifications = [] } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => api.get('/notifications/?unread=true').then(r => r.data),
+  })
+
+  const { data: accessRequests = [] } = useQuery({
+    queryKey: ['access-requests-consultant'],
+    queryFn: () => api.get('/tax/access-requests/').then(r => r.data).catch(() => []),
+  })
+
+  const pendingAccessRequests = accessRequests.filter(r => r.status === 'pending')
+
+  const reviewAccessRequest = useMutation({
+    mutationFn: ({ id, status }) => api.patch(`/tax/access-requests/${id}/`, { status }),
+    onSuccess: (_, { status }) => {
+      toast.success(`Access request ${status === 'approved' ? 'approved' : 'denied'}.`)
+      qc.invalidateQueries(['access-requests-consultant'])
+      qc.invalidateQueries(['notifications'])
+    },
+    onError: () => toast.error('Failed to update access request'),
   })
 
   // statCards carry a statusKey so clicking drills down to a filtered list
@@ -140,6 +159,51 @@ export default function ConsultantDashboard() {
                     {sub.status === 'client_confirmed' ? '✓ Client Confirmed — Archive Now' : '⏳ Payment Confirmed — Send to Client'}
                   </span>
                   <ArrowRight size={14} className="text-brand-gray" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Access Requests */}
+      {pendingAccessRequests.length > 0 && (
+        <div className="mb-6 card border-brand-yellow/30">
+          <h3 className="section-header mb-3">
+            <Eye size={15} className="text-brand-yellow" />
+            Submission View Requests
+            <span className="ml-auto bg-brand-yellow text-black text-xs font-bold px-2 py-0.5 rounded-full">
+              {pendingAccessRequests.length}
+            </span>
+          </h3>
+          <div className="space-y-2">
+            {pendingAccessRequests.map(req => (
+              <div
+                key={req.id}
+                className="flex items-center justify-between bg-brand-black-soft rounded-lg px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm font-medium text-white">{req.client_name || req.client_email}</p>
+                  <p className="text-xs text-brand-gray mt-0.5">
+                    Requesting to view <span className="text-brand-yellow">{req.tax_year_label}</span> submission
+                    &nbsp;·&nbsp;{formatDateTime(req.requested_at)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => reviewAccessRequest.mutate({ id: req.id, status: 'approved' })}
+                    disabled={reviewAccessRequest.isPending}
+                    className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1"
+                  >
+                    <CheckCircle size={12} /> Approve
+                  </button>
+                  <button
+                    onClick={() => reviewAccessRequest.mutate({ id: req.id, status: 'denied' })}
+                    disabled={reviewAccessRequest.isPending}
+                    className="btn-ghost text-xs py-1.5 px-3 flex items-center gap-1 text-brand-red border-brand-red/30 hover:bg-brand-red/10"
+                  >
+                    <X size={12} /> Deny
+                  </button>
                 </div>
               </div>
             ))}
