@@ -5,6 +5,7 @@ import api from '../../services/api'
 import { formatCurrency, formatCurrencyInt, formatDate, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../../utils/format'
 import StatusBadge from '../../components/common/StatusBadge'
 import PageHeader from '../../components/common/PageHeader'
+import NumberInput from '../../components/common/NumberInput'
 import {
   ArrowLeft, Calculator, Send, FileText, Eye, Download,
   CheckCircle, AlertCircle, Pencil, Save, X, ChevronDown, ChevronRight,
@@ -43,7 +44,7 @@ function EditableAmount({ label, value, fieldKey, onSave, indent, highlight }) {
       <div className="flex items-center gap-2 ml-auto">
         {editing ? (
           <>
-            <input value={draft} onChange={e => setDraft(e.target.value)} type="number" step="0.01"
+            <NumberInput value={draft} onChange={e => setDraft(e.target.value)}
               className="input-field text-right font-mono w-32 py-1 text-sm" autoFocus />
             <button onClick={() => { onSave(fieldKey, draft); setEditing(false) }} className="text-brand-success hover:opacity-80"><Save size={13} /></button>
             <button onClick={() => setEditing(false)} className="text-brand-gray hover:text-white"><X size={13} /></button>
@@ -109,8 +110,11 @@ function SectionEditForm({ fields, data, onSave, onCancel, saving }) {
             {f.type === 'textarea' ? (
               <textarea value={draft[f.key] || ''} onChange={e => setDraft(p => ({ ...p, [f.key]: e.target.value }))}
                 rows={2} className="input-field resize-none text-sm" />
+            ) : f.type === 'number' ? (
+              <NumberInput value={draft[f.key] || ''} onChange={e => setDraft(p => ({ ...p, [f.key]: e.target.value }))}
+                className="input-field text-sm text-right font-mono" />
             ) : (
-              <input type={f.type || 'text'} value={draft[f.key] || ''} step={f.type === 'number' ? '0.01' : undefined}
+              <input type="text" value={draft[f.key] || ''}
                 onChange={e => setDraft(p => ({ ...p, [f.key]: e.target.value }))}
                 className="input-field text-sm" />
             )}
@@ -167,13 +171,20 @@ function EditableDataTable({ columns, rows, emptyMsg = 'None entered', onEdit, o
                 <tr key={row.id || i} className="bg-brand-yellow/5">
                   {columns.map(c => (
                     <td key={c.key} className="table-cell py-1">
-                      <input
-                        type={c.right ? 'number' : 'text'}
-                        step={c.right ? '0.01' : undefined}
-                        value={editDraft[c.key] ?? ''}
-                        onChange={e => setEditDraft(p => ({ ...p, [c.key]: e.target.value }))}
-                        className="input-field py-1 text-xs w-full"
-                      />
+                      {c.right ? (
+                        <NumberInput
+                          value={editDraft[c.key] ?? ''}
+                          onChange={e => setEditDraft(p => ({ ...p, [c.key]: e.target.value }))}
+                          className="input-field py-1 text-xs w-full text-right font-mono"
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={editDraft[c.key] ?? ''}
+                          onChange={e => setEditDraft(p => ({ ...p, [c.key]: e.target.value }))}
+                          className="input-field py-1 text-xs w-full"
+                        />
+                      )}
                     </td>
                   ))}
                   <td className="table-cell py-1">

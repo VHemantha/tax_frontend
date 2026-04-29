@@ -1,5 +1,6 @@
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { useState, useEffect } from 'react'
+import NumberInput from '../../../components/common/NumberInput'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../../services/api'
 import FileUpload from '../../../components/common/FileUpload'
@@ -24,18 +25,24 @@ function FieldRow({ label, hint, children }) {
 }
 
 /* ─── Rs. amount input ─── */
-function AmountInput({ registration, disabled, className = '' }) {
+function AmountInput({ name, control, disabled, className = '' }) {
   return (
     <div className="relative">
       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray text-sm font-mono select-none">Rs.</span>
-      <input
-        {...registration}
-        type="number"
-        step="0.01"
-        min="0"
-        placeholder="0.00"
-        disabled={disabled}
-        className={`input-field pl-10 text-right font-mono ${className}`}
+      <Controller
+        name={name}
+        control={control}
+        defaultValue=""
+        render={({ field: { onChange, onBlur, value } }) => (
+          <NumberInput
+            value={value ?? ''}
+            onChange={e => onChange(e.target.value)}
+            onBlur={onBlur}
+            disabled={disabled}
+            placeholder="0"
+            className={`input-field pl-10 text-right font-mono ${className}`}
+          />
+        )}
       />
     </div>
   )
@@ -115,9 +122,9 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
 
   const [saving, setSaving] = useState(false)
 
-  const { register: regIncome, handleSubmit: handleIncome, reset: resetIncome, watch: watchIncome } = useForm()
-  const { register: regQP,     handleSubmit: handleQP,     reset: resetQP }     = useForm()
-  const { register: regTC,     handleSubmit: handleTC,     reset: resetTC,     setValue: setValueTC } = useForm()
+  const { register: regIncome, control: controlIncome, handleSubmit: handleIncome, reset: resetIncome, watch: watchIncome } = useForm()
+  const { register: regQP,     control: controlQP,     handleSubmit: handleQP,     reset: resetQP }     = useForm()
+  const { register: regTC,     control: controlTC,     handleSubmit: handleTC,     reset: resetTC,     setValue: setValueTC } = useForm()
 
   const watchedRentGross   = watchIncome('rent_gross')
   const watchedRentWHT     = watchIncome('rent_wht')
@@ -167,7 +174,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
   /* Auto-populate WHT credit from income section WHT fields */
   useEffect(() => {
     const total = parseFloat(watchedRentWHT || 0) + parseFloat(watchedInterestWHT || 0)
-    setValueTC('wht_rent_interest_service', total > 0 ? total.toFixed(2) : '')
+    setValueTC('wht_rent_interest_service', total > 0 ? String(Math.round(total)) : '')
   }, [watchedRentWHT, watchedInterestWHT])
 
   async function saveIncome(data) {
@@ -227,7 +234,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
                 <input {...regIncome('employer_name')} className="input-field" placeholder="Company / Employer name" disabled={isReadOnly} />
               </FieldRow>
               <FieldRow label="Employment Income" hint="Total gross salary for the year">
-                <AmountInput registration={regIncome('local_amount')} disabled={isReadOnly} />
+                <AmountInput name="local_amount" control={controlIncome} disabled={isReadOnly} />
               </FieldRow>
               <div className="pt-2">
                 <FileUpload label="T10 / Salary Slips" documentType="t10_salary_slip" section="income" {...fp} hint="Required" />
@@ -239,13 +246,13 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
             {/* Foreign Income */}
             <SubSection icon={Globe} title="Foreign Income">
               <FieldRow label="Employment / Service Fee" hint="Foreign employment or contract income">
-                <AmountInput registration={regIncome('foreign_employment_service_fee')} disabled={isReadOnly} />
+                <AmountInput name="foreign_employment_service_fee" control={controlIncome} disabled={isReadOnly} />
               </FieldRow>
               <FieldRow label="Foreign Business Income" hint="Profit from business carried on outside Sri Lanka">
-                <AmountInput registration={regIncome('foreign_business_income')} disabled={isReadOnly} />
+                <AmountInput name="foreign_business_income" control={controlIncome} disabled={isReadOnly} />
               </FieldRow>
               <FieldRow label="Other Foreign Source Income" hint="Rent, interest, dividends from abroad">
-                <AmountInput registration={regIncome('foreign_other')} disabled={isReadOnly} />
+                <AmountInput name="foreign_other" control={controlIncome} disabled={isReadOnly} />
               </FieldRow>
               <div className="pt-2">
                 <FileUpload label="Monthly Salary Slips / Foreign Evidence" documentType="monthly_salary_slip" section="income" {...fp} hint="Foreign employment evidence" />
@@ -260,7 +267,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
                 <input {...regIncome('terminal_benefit_types')} className="input-field" placeholder="e.g., EPF, ETF, Gratuity" disabled={isReadOnly} />
               </FieldRow>
               <FieldRow label="Total Amount">
-                <AmountInput registration={regIncome('terminal_amount')} disabled={isReadOnly} />
+                <AmountInput name="terminal_amount" control={controlIncome} disabled={isReadOnly} />
               </FieldRow>
               <div className="pt-2">
                 <FileUpload label="Tax Direction Letter / Terminal Benefit Confirmation" documentType="tax_direction_letter" section="income" {...fp} hint="One document per benefit type" />
@@ -291,7 +298,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
             {/* Rent Income */}
             <SubSection icon={Home} title="Rent Income">
               <FieldRow label="Gross Rent Received" hint="Total rent before WHT deduction">
-                <AmountInput registration={regIncome('rent_gross')} disabled={isReadOnly} />
+                <AmountInput name="rent_gross" control={controlIncome} disabled={isReadOnly} />
               </FieldRow>
               {liveRentRelief > 0 && (
                 <div className="py-1">
@@ -302,7 +309,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
                 </div>
               )}
               <FieldRow label="WHT Deducted" hint="Withholding tax deducted by tenant">
-                <AmountInput registration={regIncome('rent_wht')} disabled={isReadOnly} />
+                <AmountInput name="rent_wht" control={controlIncome} disabled={isReadOnly} />
               </FieldRow>
               <div className="pt-2">
                 <FileUpload label="Rent Agreement / WHT Deduction Certificates" documentType="rent_agreement" section="income" {...fp} />
@@ -314,10 +321,10 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
             {/* Interest Income */}
             <SubSection icon={Landmark} title="Interest Income">
               <FieldRow label="Total Interest Received" hint="Bank interest, fixed deposits, etc.">
-                <AmountInput registration={regIncome('interest_amount')} disabled={isReadOnly} />
+                <AmountInput name="interest_amount" control={controlIncome} disabled={isReadOnly} />
               </FieldRow>
               <FieldRow label="WHT Deducted" hint="WHT deducted by the bank / institution">
-                <AmountInput registration={regIncome('interest_wht')} disabled={isReadOnly} />
+                <AmountInput name="interest_wht" control={controlIncome} disabled={isReadOnly} />
               </FieldRow>
               <div className="pt-2">
                 <FileUpload label="WHT Certificates" documentType="bank_balance_confirmation" section="income" {...fp} />
@@ -329,14 +336,14 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
             {/* Dividend Income */}
             <SubSection icon={TrendingUp} title="Dividend Income">
               <FieldRow label="Taxable Dividends" hint="Dividends not subject to 15% WHT">
-                <AmountInput registration={regIncome('dividend_amount')} disabled={isReadOnly} />
+                <AmountInput name="dividend_amount" control={controlIncome} disabled={isReadOnly} />
               </FieldRow>
               <FieldRow
                 label="Exempt Dividends"
                 hint="From resident companies subject to 15% WHT — these are tax exempt and excluded from assessable income"
               >
                 <AmountInput
-                  registration={regIncome('dividend_exempt_amount')}
+                  name="dividend_exempt_amount" control={controlIncome}
                   disabled={isReadOnly}
                   className="border-brand-success/40 focus:border-brand-success"
                 />
@@ -372,7 +379,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
                 <input {...regIncome('sole_business_name')} className="input-field" placeholder="Business name" disabled={isReadOnly} />
               </FieldRow>
               <FieldRow label="Net Income Amount" hint="Profit from business for the year">
-                <AmountInput registration={regIncome('sole_amount')} disabled={isReadOnly} />
+                <AmountInput name="sole_amount" control={controlIncome} disabled={isReadOnly} />
               </FieldRow>
               <div className="pt-2">
                 <FileUpload label="Receipt & Payment Details / Finalised Partnership Accounts" documentType="partnership_accounts" section="income" {...fp} />
@@ -387,7 +394,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
                 <input {...regIncome('other_description')} className="input-field" placeholder="e.g., Royalties, Commission, etc." disabled={isReadOnly} />
               </FieldRow>
               <FieldRow label="Amount">
-                <AmountInput registration={regIncome('other_amount')} disabled={isReadOnly} />
+                <AmountInput name="other_amount" control={controlIncome} disabled={isReadOnly} />
               </FieldRow>
               <div className="pt-2">
                 <FileUpload label="Supporting Documents for Other Income" documentType="other_income_proof" section="income" {...fp} />
@@ -419,10 +426,10 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
             {/* Donations */}
             <SubSection icon={Receipt} title="Donations">
               <FieldRow label="Donation to Approved Charitable Institution">
-                <AmountInput registration={regQP('donation_charitable')} disabled={isReadOnly} />
+                <AmountInput name="donation_charitable" control={controlQP} disabled={isReadOnly} />
               </FieldRow>
               <FieldRow label="Donation to Government of Sri Lanka">
-                <AmountInput registration={regQP('donation_government')} disabled={isReadOnly} />
+                <AmountInput name="donation_government" control={controlQP} disabled={isReadOnly} />
               </FieldRow>
               <div className="pt-2">
                 <FileUpload label="Donation Proof Documents" documentType="donation_proof" section="qualifying_payments" {...fp} />
@@ -434,7 +441,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
             {/* Solar Panels */}
             <SubSection icon={TrendingUp} title="Solar Panels">
               <FieldRow label="Solar Panel Expenditure / Loan Repayment" hint="Maximum deductible: Rs. 600,000">
-                <AmountInput registration={regQP('solar_panels_expenditure')} disabled={isReadOnly} />
+                <AmountInput name="solar_panels_expenditure" control={controlQP} disabled={isReadOnly} />
               </FieldRow>
               <div className="pt-2">
                 <FileUpload label="Solar Panel Invoice & Grid Agreement" documentType="solar_invoice" section="qualifying_payments" {...fp} />
@@ -488,11 +495,11 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
             {/* Tax Deducted at Source */}
             <SubSection icon={CreditCard} title="Tax Deducted at Source">
               <FieldRow label="APIT on Salary" hint="As per T10 certificate from employer">
-                <AmountInput registration={regTC('apit_on_salary')} disabled={isReadOnly} />
+                <AmountInput name="apit_on_salary" control={controlTC} disabled={isReadOnly} />
               </FieldRow>
               <FieldRow label="WHT on Rent / Interest / Service Fees" hint="Auto-calculated from Rent WHT + Interest WHT entered above">
                 <div className="space-y-2">
-                  <AmountInput registration={regTC('wht_rent_interest_service')} disabled />
+                  <AmountInput name="wht_rent_interest_service" control={controlTC} disabled />
                   {liveWHTTotal > 0 && (
                     <ReliefPill
                       label="WHT (Rent + Interest — auto)"
@@ -505,7 +512,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
                 </div>
               </FieldRow>
               <FieldRow label="Partnership Tax Credit" hint="Tax credit passed through from partnership">
-                <AmountInput registration={regTC('partnership_tax_credit')} disabled={isReadOnly} />
+                <AmountInput name="partnership_tax_credit" control={controlTC} disabled={isReadOnly} />
               </FieldRow>
               <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FileUpload label="T10 Certificate (APIT)" documentType="t10_certificate" section="tax_credits" {...fp} />
@@ -575,13 +582,10 @@ function SelfAssessmentInstallments({ submissionId, isReadOnly }) {
               <label className="text-xs text-brand-gray mb-1.5 block font-medium">{label}</label>
               <div className="relative">
                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-gray text-xs font-mono select-none">Rs.</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  defaultValue={inst?.amount || ''}
+                <NumberInput
+                  value={inst?.amount ?? ''}
                   onBlur={e => !isReadOnly && saveInstallment(num, e.target.value || 0)}
-                  placeholder="0.00"
+                  placeholder="0"
                   disabled={isReadOnly}
                   className="input-field pl-9 text-right font-mono text-sm"
                 />

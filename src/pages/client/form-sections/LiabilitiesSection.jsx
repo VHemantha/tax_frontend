@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Plus, Trash2, Pencil, X, Save, CreditCard } from 'lucide-react'
 import api from '../../../services/api'
 import FileUpload from '../../../components/common/FileUpload'
+import NumberInput from '../../../components/common/NumberInput'
 import toast from 'react-hot-toast'
 
 const FIELDS = [
@@ -198,14 +199,20 @@ export default function LiabilitiesSection({ submissionId, documents, onUpload, 
                   <label className="block text-xs text-brand-gray mb-1.5 font-medium uppercase tracking-wider">
                     {field.label}
                   </label>
-                  <input
-                    type={field.type}
-                    step={field.type === 'number' ? '0.01' : undefined}
-                    min={field.type === 'number' ? '0' : undefined}
-                    value={formVals[field.key] ?? ''}
-                    onChange={e => setFormVals(v => ({ ...v, [field.key]: e.target.value }))}
-                    className={`input-field w-full ${field.type === 'number' ? 'text-right font-mono' : ''}`}
-                  />
+                  {field.type === 'number' ? (
+                    <NumberInput
+                      value={formVals[field.key] ?? ''}
+                      onChange={e => setFormVals(v => ({ ...v, [field.key]: e.target.value }))}
+                      className="input-field w-full text-right font-mono"
+                    />
+                  ) : (
+                    <input
+                      type={field.type}
+                      value={formVals[field.key] ?? ''}
+                      onChange={e => setFormVals(v => ({ ...v, [field.key]: e.target.value }))}
+                      className="input-field w-full"
+                    />
+                  )}
                 </div>
               ))}
             </div>

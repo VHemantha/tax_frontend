@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../../services/api'
 import { ChevronRight, ChevronLeft, Plus, Trash2, Pencil, X, Save, LayoutList } from 'lucide-react'
 import toast from 'react-hot-toast'
+import NumberInput from '../../../components/common/NumberInput'
 
 const COLOR_MAP = {
   blue:   'bg-blue-900/40 text-blue-300 border border-blue-700/50',
@@ -461,14 +462,18 @@ export default function AssetsSection({ submissionId, isReadOnly, onNext, onPrev
                         <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
                     </select>
+                  ) : field.type === 'number' ? (
+                    <NumberInput
+                      value={formVals[field.key] ?? ''}
+                      onChange={e => setFormVals(v => ({ ...v, [field.key]: e.target.value }))}
+                      className="input-field w-full text-right font-mono"
+                    />
                   ) : (
                     <input
                       type={field.type}
-                      step={field.type === 'number' ? '0.01' : undefined}
-                      min={field.type === 'number' ? '0' : undefined}
                       value={formVals[field.key] ?? ''}
                       onChange={e => setFormVals(v => ({ ...v, [field.key]: e.target.value }))}
-                      className={`input-field w-full ${field.type === 'number' ? 'text-right font-mono' : ''}`}
+                      className="input-field w-full"
                     />
                   )}
                 </div>

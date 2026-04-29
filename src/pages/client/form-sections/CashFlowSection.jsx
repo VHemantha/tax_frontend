@@ -4,6 +4,7 @@ import api from '../../../services/api'
 import { ArrowRight, ArrowLeft, TrendingUp, TrendingDown, Landmark, Plus, Trash2, Save } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
+import NumberInput from '../../../components/common/NumberInput'
 
 const D = (v) => parseFloat(v || 0)
 const fmt = (v) => D(v).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -16,13 +17,9 @@ function AmountRow({ label, fieldKey, value, onChange, readOnly }) {
       {readOnly ? (
         <span className="text-sm font-mono text-white w-36 text-right">{fmt(value)}</span>
       ) : (
-        <input
-          type="number"
-          min="0"
-          step="0.01"
+        <NumberInput
           value={value || ''}
           onChange={e => onChange(fieldKey, e.target.value)}
-          placeholder="0.00"
           className="input-field w-36 text-right text-sm py-1.5 px-2"
         />
       )}
@@ -82,12 +79,8 @@ function BankList({ label, entries, onChange, readOnly }) {
             readOnly={readOnly}
             onChange={e => updateRow(i, 'account_no', e.target.value)}
           />
-          <input
-            type="number"
-            min="0"
-            step="0.01"
+          <NumberInput
             className="input-field col-span-2 text-sm py-1.5 px-2 text-right"
-            placeholder="0.00"
             value={row.amount}
             readOnly={readOnly}
             onChange={e => updateRow(i, 'amount', e.target.value)}
