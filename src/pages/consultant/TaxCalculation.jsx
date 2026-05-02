@@ -560,25 +560,13 @@ export default function TaxCalculation() {
     } catch { window.open(doc.file_url, '_blank') }
   }
 
-  if (isLoading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 border-2 border-brand-yellow border-t-transparent rounded-full animate-spin" />
-    </div>
-  )
-
-  const s = submission
-  const canEdit = s?.status !== 'archived'
-  const canConfirm = ['submitted', 'under_review', 'info_requested'].includes(s?.status)
-  const canFinalSubmit = s?.status === 'confirmed'
-  const paymentReceived = s?.payment_status === 'paid'
-  const canArchive = s?.status === 'client_confirmed'
-  const awaitingClientReview = s?.status === 'awaiting_client_review'
+  // ── All hooks must be above any conditional return (Rules of Hooks) ──────────
   // Frontend-computed rent relief: 25% of gross rent — instant, no API needed
-  const computedRentRelief = (parseFloat(s?.rent_income?.gross_amount || 0) * 0.25).toFixed(2)
+  const computedRentRelief = (parseFloat(submission?.rent_income?.gross_amount || 0) * 0.25).toFixed(2)
 
   // derivedCalc: reactive tax computation — instantly reflects pendingUpdates + liveCalc
   const derivedCalc = useMemo(() => {
-    const base = liveCalc || s || {}
+    const base = liveCalc || submission || {}
     const D = (k, fallback = 0) => parseFloat(pendingUpdates[k] ?? base[k] ?? fallback) || fallback
 
     const tai = D('total_assessable_income')
@@ -602,21 +590,36 @@ export default function TaxCalculation() {
     const netTax     = Math.max(0, grossTax - credits) + foreignTax
 
     return {
-      total_assessable_income:  tai,
-      exempt_dividend_income:   D('exempt_dividend_income'),
+      total_assessable_income:   tai,
+      exempt_dividend_income:    D('exempt_dividend_income'),
       total_qualifying_payments: qp,
-      personal_relief:          pr,
-      rent_relief:              rr,
-      net_taxable_income:       netTaxable,
-      gross_tax:                grossTax,
+      personal_relief:           pr,
+      rent_relief:               rr,
+      net_taxable_income:        netTaxable,
+      gross_tax:                 grossTax,
       slab_breakdown,
-      total_tax_credits:        credits,
-      foreign_income_tax:       foreignTax,
-      net_tax_payable:          pendingUpdates.net_tax_payable !== undefined
+      total_tax_credits:         credits,
+      foreign_income_tax:        foreignTax,
+      net_tax_payable:           pendingUpdates.net_tax_payable !== undefined
         ? (parseFloat(pendingUpdates.net_tax_payable) || 0)
         : netTax,
     }
-  }, [pendingUpdates, liveCalc, s, computedRentRelief])
+  }, [pendingUpdates, liveCalc, submission, computedRentRelief])
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="w-8 h-8 border-2 border-brand-yellow border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+
+  const s = submission
+  const canEdit = s?.status !== 'archived'
+  const canConfirm = ['submitted', 'under_review', 'info_requested'].includes(s?.status)
+  const canFinalSubmit = s?.status === 'confirmed'
+  const paymentReceived = s?.payment_status === 'paid'
+  const canArchive = s?.status === 'client_confirmed'
+  const awaitingClientReview = s?.status === 'awaiting_client_review'
 
   // Keep val/liveVal for non-calculation fields still used elsewhere in the page
   const val = k => pendingUpdates[k] ?? s?.[k] ?? liveCalc?.[k]
