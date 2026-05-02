@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
@@ -13,6 +13,27 @@ import {
   History, Upload, Archive
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+/* ─── Frontend tax slab calculator (mirrors tax_calculator.py) ─── */
+const _SLABS = [[1_000_000, 0.06], [500_000, 0.18], [500_000, 0.24], [500_000, 0.30], [null, 0.36]]
+const _SLAB_LABELS = [
+  'First Rs. 1,000,000 @ 6%', 'Next Rs. 500,000 @ 18%',
+  'Next Rs. 500,000 @ 24%',   'Next Rs. 500,000 @ 30%', 'Balance @ 36%',
+]
+function computeSlabTax(taxableIncome) {
+  if (taxableIncome <= 0) return { gross_tax: 0, slab_breakdown: [] }
+  let remaining = taxableIncome, tax = 0
+  const breakdown = []
+  _SLABS.forEach(([limit, rate], i) => {
+    if (remaining <= 0) return
+    const applicable = limit ? Math.min(remaining, limit) : remaining
+    const slabTax = Math.round(applicable * rate * 100) / 100
+    tax += slabTax
+    breakdown.push({ label: _SLAB_LABELS[i], rate: String(rate), taxable_amount: String(applicable), tax: String(slabTax) })
+    remaining -= applicable
+  })
+  return { gross_tax: Math.round(tax * 100) / 100, slab_breakdown: breakdown }
+}
 
 /* ─── Static display helpers ─── */
 function Row({ label, value }) {
@@ -378,12 +399,13 @@ export default function TaxCalculation() {
     enabled: !!submissionId,
   })
 
-  // Live calculation (Change 5) — shows real-time TAI even before confirming
+  // Live calculation — polls every 5 s so consultant sees auto-calculated values immediately
   const { data: liveCalc } = useQuery({
     queryKey: ['live-calc', submissionId],
     queryFn: () => api.get(`/tax/submissions/${submissionId}/live-calculate/`).then(r => r.data),
     enabled: !!submissionId,
-    staleTime: 30000,
+    staleTime: 0,
+    refetchInterval: 5000,
   })
 
   const confirmCalc = useMutation({
@@ -434,6 +456,7 @@ export default function TaxCalculation() {
       setWhtAddOpen(false)
       setWhtDraft({ category: 'rent', amount: '', notes: '' })
       qc.invalidateQueries(['submission', submissionId])
+      qc.invalidateQueries(['live-calc', submissionId])
     },
     onError: () => toast.error('Failed to add WHT entry'),
   })
@@ -443,6 +466,7 @@ export default function TaxCalculation() {
     onSuccess: () => {
       toast.success('WHT entry removed')
       qc.invalidateQueries(['submission', submissionId])
+      qc.invalidateQueries(['live-calc', submissionId])
     },
     onError: () => toast.error('Failed to remove WHT entry'),
   })
@@ -468,6 +492,7 @@ export default function TaxCalculation() {
     try {
       await api.patch(`/tax/submissions/${submissionId}/update-calculation/`, pendingUpdates)
       qc.invalidateQueries(['submission', submissionId])
+      qc.invalidateQueries(['live-calc', submissionId])
       qc.invalidateQueries(['edit-logs', submissionId])
       setPendingUpdates({})
       toast.success('Calculation updated')
@@ -482,6 +507,7 @@ export default function TaxCalculation() {
     try {
       await api.post(cfg.endpoint(submissionId), data)
       qc.invalidateQueries(['submission', submissionId])
+      qc.invalidateQueries(['live-calc', submissionId])
       qc.invalidateQueries(['edit-logs', submissionId])
       setEditingSection(null)
       toast.success(`${cfg.label} updated`)
@@ -496,6 +522,7 @@ export default function TaxCalculation() {
   async function patchRow(itemEndpointBase, rowId, data) {
     await api.patch(`/tax/${itemEndpointBase}/${rowId}/`, data)
     qc.invalidateQueries(['submission', submissionId])
+    qc.invalidateQueries(['live-calc', submissionId])
     qc.invalidateQueries(['edit-logs', submissionId])
     toast.success('Row updated')
   }
@@ -504,6 +531,7 @@ export default function TaxCalculation() {
     if (!window.confirm('Delete this row?')) return
     await api.delete(`/tax/${itemEndpointBase}/${rowId}/`)
     qc.invalidateQueries(['submission', submissionId])
+    qc.invalidateQueries(['live-calc', submissionId])
     qc.invalidateQueries(['edit-logs', submissionId])
     toast.success('Row deleted')
   }
@@ -511,6 +539,7 @@ export default function TaxCalculation() {
   async function addRow(listEndpoint, defaults) {
     await api.post(`/tax/submissions/${submissionId}/${listEndpoint}`, defaults)
     qc.invalidateQueries(['submission', submissionId])
+    qc.invalidateQueries(['live-calc', submissionId])
     toast.success('Row added')
   }
 
@@ -544,11 +573,54 @@ export default function TaxCalculation() {
   const paymentReceived = s?.payment_status === 'paid'
   const canArchive = s?.status === 'client_confirmed'
   const awaitingClientReview = s?.status === 'awaiting_client_review'
-  // val: pendingUpdates > stored submission > live calculation (Change 5 — TAI fix)
-  const val = k => pendingUpdates[k] ?? s?.[k] ?? liveCalc?.[k]
-  const liveVal = k => liveCalc?.[k] ?? s?.[k]
   // Frontend-computed rent relief: 25% of gross rent — instant, no API needed
   const computedRentRelief = (parseFloat(s?.rent_income?.gross_amount || 0) * 0.25).toFixed(2)
+
+  // derivedCalc: reactive tax computation — instantly reflects pendingUpdates + liveCalc
+  const derivedCalc = useMemo(() => {
+    const base = liveCalc || s || {}
+    const D = (k, fallback = 0) => parseFloat(pendingUpdates[k] ?? base[k] ?? fallback) || fallback
+
+    const tai = D('total_assessable_income')
+    const qp  = D('total_qualifying_payments')
+    const pr  = D('personal_relief', 1_800_000)
+    const rr  = D('rent_relief', parseFloat(computedRentRelief) || 0)
+
+    // If net_taxable_income explicitly overridden by consultant, use that directly
+    const netTaxable = pendingUpdates.net_taxable_income !== undefined
+      ? Math.max(0, parseFloat(pendingUpdates.net_taxable_income) || 0)
+      : Math.max(0, tai - qp - pr - rr)
+
+    const { gross_tax: computedGross, slab_breakdown } = computeSlabTax(netTaxable)
+    // If consultant manually edited gross_tax, honour that; otherwise use slab result
+    const grossTax = pendingUpdates.gross_tax !== undefined
+      ? (parseFloat(pendingUpdates.gross_tax) || 0)
+      : computedGross
+
+    const credits    = D('total_tax_credits')
+    const foreignTax = D('foreign_income_tax')
+    const netTax     = Math.max(0, grossTax - credits) + foreignTax
+
+    return {
+      total_assessable_income:  tai,
+      exempt_dividend_income:   D('exempt_dividend_income'),
+      total_qualifying_payments: qp,
+      personal_relief:          pr,
+      rent_relief:              rr,
+      net_taxable_income:       netTaxable,
+      gross_tax:                grossTax,
+      slab_breakdown,
+      total_tax_credits:        credits,
+      foreign_income_tax:       foreignTax,
+      net_tax_payable:          pendingUpdates.net_tax_payable !== undefined
+        ? (parseFloat(pendingUpdates.net_tax_payable) || 0)
+        : netTax,
+    }
+  }, [pendingUpdates, liveCalc, s, computedRentRelief])
+
+  // Keep val/liveVal for non-calculation fields still used elsewhere in the page
+  const val = k => pendingUpdates[k] ?? s?.[k] ?? liveCalc?.[k]
+  const liveVal = k => liveCalc?.[k] ?? s?.[k]
 
   // Doc grouping
   const docsBySection = documents.reduce((acc, doc) => {
@@ -1281,33 +1353,23 @@ export default function TaxCalculation() {
                   <span className="text-xs text-brand-yellow animate-pulse">{Object.keys(pendingUpdates).length} unsaved</span>
                 )}
               </div>
-              <p className="text-xs text-brand-gray mb-3 flex items-center gap-1"><Pencil size={10} /> Click pencil to edit</p>
+              <p className="text-xs text-brand-gray mb-3 flex items-center gap-1"><Pencil size={10} /> Click pencil to override · Auto-calculated from income data</p>
 
-              {/* Live TAI badge — shows real value even before confirming (Change 5) */}
-              {liveCalc && parseFloat(liveCalc.total_assessable_income) !== parseFloat(s?.total_assessable_income || 0) && (
-                <div className="mb-3 px-3 py-2 bg-brand-info/10 border border-brand-info/20 rounded-lg">
-                  <p className="text-xs text-brand-info">Live calculation available. Stored value differs from current income data.</p>
-                  <p className="text-xs text-white font-mono mt-1">Live TAI: {formatCurrency(liveCalc.total_assessable_income)}</p>
-                </div>
-              )}
-
-              <EditableAmount label="Assessable Income" value={liveVal('total_assessable_income')} fieldKey="total_assessable_income" onSave={handleFieldUpdate} />
-              {/* Exempt dividend income (Change 16) */}
-              {parseFloat(liveVal('exempt_dividend_income') || 0) > 0 && (
+              <EditableAmount label="Assessable Income" value={derivedCalc.total_assessable_income} fieldKey="total_assessable_income" onSave={handleFieldUpdate} />
+              {derivedCalc.exempt_dividend_income > 0 && (
                 <div className="flex justify-between items-center py-1 pl-4">
                   <span className="text-xs text-brand-gray italic">Exempt Dividend Income (15% WHT)</span>
-                  <span className="text-xs text-brand-success font-mono">{formatCurrency(liveVal('exempt_dividend_income'))}</span>
+                  <span className="text-xs text-brand-success font-mono">{formatCurrency(derivedCalc.exempt_dividend_income)}</span>
                 </div>
               )}
-              <EditableAmount label="Less: Qualifying Pmts" value={val('total_qualifying_payments')} fieldKey="total_qualifying_payments" onSave={handleFieldUpdate} indent />
-              <EditableAmount label="Less: Personal Relief" value={val('personal_relief')} fieldKey="personal_relief" onSave={handleFieldUpdate} indent />
-              <EditableAmount label="Less: Rent Relief (25%)" value={liveVal('rent_relief') ?? computedRentRelief} fieldKey="rent_relief" onSave={handleFieldUpdate} indent />
-              {/* Change 19: renamed from Net Taxable Income → Taxable Income */}
-              <EditableAmount label="Taxable Income" value={liveVal('net_taxable_income')} fieldKey="net_taxable_income" onSave={handleFieldUpdate} highlight />
+              <EditableAmount label="Less: Qualifying Pmts" value={derivedCalc.total_qualifying_payments} fieldKey="total_qualifying_payments" onSave={handleFieldUpdate} indent />
+              <EditableAmount label="Less: Personal Relief" value={derivedCalc.personal_relief} fieldKey="personal_relief" onSave={handleFieldUpdate} indent />
+              <EditableAmount label="Less: Rent Relief (25%)" value={derivedCalc.rent_relief} fieldKey="rent_relief" onSave={handleFieldUpdate} indent />
+              <EditableAmount label="Taxable Income" value={derivedCalc.net_taxable_income} fieldKey="net_taxable_income" onSave={handleFieldUpdate} highlight />
               <div className="h-px bg-brand-gray-border my-3" />
 
-              {/* Slab breakdown (Change 19) */}
-              {(liveCalc?.slab_breakdown || s?.slab_breakdown || []).length > 0 && (
+              {/* Slab breakdown — live from derivedCalc */}
+              {derivedCalc.slab_breakdown.length > 0 && (
                 <div className="mb-3">
                   <p className="text-xs text-brand-gray uppercase tracking-wider mb-2">Tax Slab Breakdown</p>
                   <table className="w-full text-xs">
@@ -1318,7 +1380,7 @@ export default function TaxCalculation() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(liveCalc?.slab_breakdown || s?.slab_breakdown || []).map((row, i) => (
+                      {derivedCalc.slab_breakdown.map((row, i) => (
                         <tr key={i} className="border-b border-brand-gray-border/50">
                           <td className="py-1 text-brand-gray">{row.label}</td>
                           <td className="py-1 text-right font-mono text-white">{formatCurrencyInt(row.tax)}</td>
@@ -1329,7 +1391,7 @@ export default function TaxCalculation() {
                 </div>
               )}
 
-              <EditableAmount label="Gross Tax" value={val('gross_tax')} fieldKey="gross_tax" onSave={handleFieldUpdate} />
+              <EditableAmount label="Gross Tax" value={derivedCalc.gross_tax} fieldKey="gross_tax" onSave={handleFieldUpdate} />
               <div className="h-px bg-brand-gray-border my-2" />
               {/* Individual tax credit lines — shown above balance payable */}
               {parseFloat(s?.tax_credits?.apit_on_salary || 0) > 0 && (
@@ -1356,13 +1418,12 @@ export default function TaxCalculation() {
                   <span className="text-xs font-mono text-white">({formatCurrency(s.tax_credits.partnership_tax_credit)})</span>
                 </div>
               )}
-              <EditableAmount label="Less: Total Tax Credits" value={val('total_tax_credits')} fieldKey="total_tax_credits" onSave={handleFieldUpdate} indent />
+              <EditableAmount label="Less: Total Tax Credits" value={derivedCalc.total_tax_credits} fieldKey="total_tax_credits" onSave={handleFieldUpdate} indent />
 
               {/* Foreign Income Tax @ 15% flat — shown separately above balance */}
               {(() => {
                 const fiAmount = parseFloat(s?.foreign_income?.employment_service_fee || 0) + parseFloat(s?.foreign_income?.other_foreign_income || 0)
                 const fiPaid = parseFloat(s?.foreign_income?.foreign_tax_paid || 0)
-                const fiTax = parseFloat(liveVal('foreign_income_tax') ?? val('foreign_income_tax') ?? 0)
                 if (fiAmount <= 0) return null
                 return (
                   <div className="mt-3 border border-brand-yellow/20 rounded-xl overflow-hidden">
@@ -1386,7 +1447,7 @@ export default function TaxCalculation() {
                       )}
                       <div className="flex justify-between text-xs font-semibold border-t border-brand-yellow/20 pt-1 mt-1">
                         <span className="text-white">Net Foreign Tax Payable</span>
-                        <EditableAmount label="" value={val('foreign_income_tax')} fieldKey="foreign_income_tax" onSave={handleFieldUpdate} />
+                        <EditableAmount label="" value={derivedCalc.foreign_income_tax} fieldKey="foreign_income_tax" onSave={handleFieldUpdate} />
                       </div>
                     </div>
                   </div>
@@ -1395,7 +1456,7 @@ export default function TaxCalculation() {
 
               <div className="mt-4 bg-brand-yellow/10 border border-brand-yellow/30 rounded-xl p-4">
                 <p className="text-xs text-brand-gray uppercase tracking-wider mb-2">BALANCE TAX PAYABLE</p>
-                <EditableAmount label="" value={val('net_tax_payable')} fieldKey="net_tax_payable" onSave={handleFieldUpdate} />
+                <EditableAmount label="" value={derivedCalc.net_tax_payable} fieldKey="net_tax_payable" onSave={handleFieldUpdate} />
               </div>
 
               {/* Payment Status (Change 8) */}
