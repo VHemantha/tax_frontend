@@ -130,7 +130,9 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
   const watchedRentWHT     = watchIncome('rent_wht')
   const watchedInterestWHT = watchIncome('interest_wht')
   const liveRentRelief     = Math.round(parseFloat(watchedRentGross || 0) * 0.25 * 100) / 100
-  const liveWHTTotal       = Math.round((parseFloat(watchedRentWHT || 0) + parseFloat(watchedInterestWHT || 0)) * 100) / 100
+  const soleEntries        = Array.isArray(queries.sole.data) ? queries.sole.data : []
+  const soleWHTTotal       = soleEntries.reduce((s, e) => s + parseFloat(e.wht_deducted || 0), 0)
+  const liveWHTTotal       = Math.round((parseFloat(watchedRentWHT || 0) + parseFloat(watchedInterestWHT || 0) + soleWHTTotal) * 100) / 100
 
   useEffect(() => {
     const d = queries
@@ -148,8 +150,6 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
       interest_wht:                   d.interest.data?.wht_deducted || '',
       dividend_amount:                d.dividend.data?.amount || '',
       dividend_exempt_amount:         d.dividend.data?.exempt_amount || '',
-      sole_amount:                    d.sole.data?.amount || '',
-      sole_business_name:             d.sole.data?.business_name || '',
       other_amount:                   d.other.data?.amount || '',
       other_description:              d.other.data?.description || '',
     })
@@ -173,9 +173,9 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
 
   /* Auto-populate WHT credit from income section WHT fields */
   useEffect(() => {
-    const total = parseFloat(watchedRentWHT || 0) + parseFloat(watchedInterestWHT || 0)
+    const total = parseFloat(watchedRentWHT || 0) + parseFloat(watchedInterestWHT || 0) + soleWHTTotal
     setValueTC('wht_rent_interest_service', total > 0 ? String(Math.round(total)) : '')
-  }, [watchedRentWHT, watchedInterestWHT])
+  }, [watchedRentWHT, watchedInterestWHT, soleWHTTotal])
 
   async function saveIncome(data) {
     setSaving(true)
@@ -187,7 +187,6 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
         api.post(`/tax/submissions/${submissionId}/income/rent/`,               { gross_amount: data.rent_gross || 0, wht_deducted: data.rent_wht || 0 }),
         api.post(`/tax/submissions/${submissionId}/income/interest/`,           { amount: data.interest_amount || 0, wht_deducted: data.interest_wht || 0 }),
         api.post(`/tax/submissions/${submissionId}/income/dividend/`,           { amount: data.dividend_amount || 0, exempt_amount: data.dividend_exempt_amount || 0 }),
-        api.post(`/tax/submissions/${submissionId}/income/sole-proprietorship/`,{ amount: data.sole_amount || 0, business_name: data.sole_business_name }),
         api.post(`/tax/submissions/${submissionId}/income/other/`,              { amount: data.other_amount || 0, description: data.other_description }),
       ])
       toast.success('Income data saved')

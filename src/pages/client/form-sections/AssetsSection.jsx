@@ -215,22 +215,26 @@ export default function AssetsSection({ submissionId, isReadOnly, onNext, onPrev
     addList('disposals', disposals)
 
     const cashCat = CAT_MAP['cash']
-    rows.push({
-      id: 'cash-single', category: 'cash', catDef: cashCat, isSingle: true,
-      description: cashCat.getDescription(cashInHand),
-      detail: '—',
-      amount: cashInHand?.amount,
-      raw: cashInHand,
-    })
+    if (parseFloat(cashInHand?.amount) > 0) {
+      rows.push({
+        id: 'cash-single', category: 'cash', catDef: cashCat, isSingle: true,
+        description: cashCat.getDescription(cashInHand),
+        detail: '—',
+        amount: cashInHand?.amount,
+        raw: cashInHand,
+      })
+    }
 
     const goldCat = CAT_MAP['gold']
-    rows.push({
-      id: 'gold-single', category: 'gold', catDef: goldCat, isSingle: true,
-      description: goldCat.getDescription(gold),
-      detail: '—',
-      amount: gold?.value,
-      raw: gold,
-    })
+    if (parseFloat(gold?.value) > 0) {
+      rows.push({
+        id: 'gold-single', category: 'gold', catDef: goldCat, isSingle: true,
+        description: goldCat.getDescription(gold),
+        detail: '—',
+        amount: gold?.value,
+        raw: gold,
+      })
+    }
 
     return rows
   }, [immovable, vehicles, bankBalances, shares, loans, business, otherAssets, disposals, cashInHand, gold])
@@ -238,10 +242,8 @@ export default function AssetsSection({ submissionId, isReadOnly, onNext, onPrev
   const visibleRows = filterCat === 'all' ? allRows : allRows.filter(r => r.category === filterCat)
 
   function openAddModal() {
-    const firstNonSingle = CATEGORIES.find(c => !c.isSingle)
-    const key = firstNonSingle?.key || 'immovable'
-    setModalCat(key)
-    setFormVals({ ...CAT_MAP[key].defaults })
+    setModalCat(CATEGORIES[0].key)
+    setFormVals({ ...CATEGORIES[0].defaults })
     setEditTarget(null)
     setModalOpen(true)
   }
@@ -255,23 +257,35 @@ export default function AssetsSection({ submissionId, isReadOnly, onNext, onPrev
 
   function onCategoryChange(key) {
     setModalCat(key)
-    if (!editTarget) {
-      setFormVals({ ...CAT_MAP[key].defaults })
-    }
+    // Always reset form values when category changes so stale field keys don't carry over
+    setFormVals({ ...CAT_MAP[key].defaults })
   }
 
   async function handleSave() {
     setSaving(true)
     try {
       const cat = CAT_MAP[modalCat]
+      const categoryChanged = editTarget && modalCat !== editTarget.catKey
 
       if (editTarget) {
-        if (cat.isSingle) {
+        if (categoryChanged) {
+          const oldCat = CAT_MAP[editTarget.catKey]
+          if (editTarget.isSingle) {
+            // Clear the old singleton by posting its defaults
+            await api.post(`/tax/submissions/${submissionId}/assets/${oldCat.endpoint}/`, oldCat.defaults)
+          } else {
+            await api.delete(`/tax/assets/${oldCat.endpoint}/${editTarget.id}/`)
+          }
+          qc.invalidateQueries([oldCat.queryKey, submissionId])
           await api.post(`/tax/submissions/${submissionId}/assets/${cat.endpoint}/`, formVals)
+          toast.success('Moved to new category')
+        } else if (cat.isSingle) {
+          await api.post(`/tax/submissions/${submissionId}/assets/${cat.endpoint}/`, formVals)
+          toast.success('Updated')
         } else {
           await api.patch(`/tax/assets/${cat.endpoint}/${editTarget.id}/`, formVals)
+          toast.success('Updated')
         }
-        toast.success('Updated')
       } else {
         await api.post(`/tax/submissions/${submissionId}/assets/${cat.endpoint}/`, formVals)
         toast.success(cat.isSingle ? 'Saved' : 'Added')
@@ -286,13 +300,17 @@ export default function AssetsSection({ submissionId, isReadOnly, onNext, onPrev
   }
 
   async function handleDelete(row) {
-    if (row.isSingle) return
     try {
-      await api.delete(`/tax/assets/${row.catDef.endpoint}/${row.id}/`)
+      if (row.isSingle) {
+        // Clear singleton by posting its zero defaults
+        await api.post(`/tax/submissions/${submissionId}/assets/${row.catDef.endpoint}/`, row.catDef.defaults)
+      } else {
+        await api.delete(`/tax/assets/${row.catDef.endpoint}/${row.id}/`)
+      }
       qc.invalidateQueries([row.catDef.queryKey, submissionId])
-      toast.success('Deleted')
+      toast.success('Removed')
     } catch {
-      toast.error('Failed to delete')
+      toast.error('Failed to remove')
     }
   }
 
@@ -373,15 +391,13 @@ export default function AssetsSection({ submissionId, isReadOnly, onNext, onPrev
                           >
                             <Pencil size={13} />
                           </button>
-                          {!row.isSingle && (
-                            <button
-                              onClick={() => handleDelete(row)}
-                              className="text-brand-red hover:opacity-80 transition-opacity"
-                              title="Delete"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => handleDelete(row)}
+                            className="text-brand-red hover:opacity-80 transition-opacity"
+                            title="Delete"
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </div>
                       </td>
                     )}
@@ -429,21 +445,15 @@ export default function AssetsSection({ submissionId, isReadOnly, onNext, onPrev
                 <label className="block text-xs text-brand-gray mb-1.5 font-medium uppercase tracking-wider">
                   Category
                 </label>
-                {editTarget ? (
-                  <span className={`inline-flex items-center px-3 py-1.5 rounded text-sm font-medium ${COLOR_MAP[activeCat.color]}`}>
-                    {activeCat.label}
-                  </span>
-                ) : (
-                  <select
-                    value={modalCat}
-                    onChange={e => onCategoryChange(e.target.value)}
-                    className="input-field w-full"
-                  >
-                    {CATEGORIES.map(c => (
-                      <option key={c.key} value={c.key}>{c.label}</option>
-                    ))}
-                  </select>
-                )}
+                <select
+                  value={modalCat}
+                  onChange={e => onCategoryChange(e.target.value)}
+                  className="input-field w-full"
+                >
+                  {CATEGORIES.map(c => (
+                    <option key={c.key} value={c.key}>{c.label}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Dynamic fields */}

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
 import PageHeader from '../../components/common/PageHeader'
 import {
-  CheckCircle, Banknote, Phone, ArrowLeft, Clock,
+  CheckCircle, Banknote, Phone, Mail, ArrowLeft, Clock,
   FileText, TrendingUp, Home, Car, Landmark, PieChart,
   Wallet, Package, Building2, AlertTriangle, ChevronDown, ChevronRight, Download
 } from 'lucide-react'
@@ -127,7 +127,32 @@ export default function ClientConfirmation() {
             <Phone size={15} className="text-brand-yellow" />
             <p className="text-sm font-semibold text-white">Contact Accounts Division</p>
           </div>
-          <p className="text-sm text-brand-gray">Please reach out to your assigned consultant or the accounts office to make the necessary payment arrangements.</p>
+          <p className="text-sm text-brand-gray mb-3">Please reach out to your assigned consultant or the accounts office to make the necessary payment arrangements.</p>
+          {(submission?.consultant_email || submission?.consultant_phone) && (
+            <div className="space-y-2">
+              {submission.consultant_name && (
+                <p className="text-xs text-brand-gray uppercase tracking-wider mb-1">{submission.consultant_name}</p>
+              )}
+              {submission.consultant_email && (
+                <a
+                  href={`mailto:${submission.consultant_email}`}
+                  className="flex items-center gap-2 text-sm text-white hover:text-brand-yellow transition-colors"
+                >
+                  <Mail size={14} className="text-brand-yellow flex-shrink-0" />
+                  {submission.consultant_email}
+                </a>
+              )}
+              {submission.consultant_phone && (
+                <a
+                  href={`tel:${submission.consultant_phone}`}
+                  className="flex items-center gap-2 text-sm text-white hover:text-brand-yellow transition-colors"
+                >
+                  <Phone size={14} className="text-brand-yellow flex-shrink-0" />
+                  {submission.consultant_phone}
+                </a>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="card">
@@ -177,21 +202,85 @@ export default function ClientConfirmation() {
   // ── Full tax computation + assets & liabilities review ──
   if (submission?.status === 'awaiting_client_review') {
     const s = submission
+    const num = v => parseFloat(v || 0)
+
+    const foreignTotal = num(s.foreign_income?.employment_service_fee) +
+      num(s.foreign_income?.foreign_business_income) + num(s.foreign_income?.other_foreign_income)
+    const selfAssessTotal = (s.self_assessment_payments || []).reduce((a, p) => a + num(p.amount), 0)
+
+    // Cash-flow pre-computed totals
+    const cf = s.cash_flow
+    let cfOpeningTotal = 0, cfTotalReceipts = 0, cfTotalCashAvailable = 0,
+        cfTotalPayments = 0, cfNetCash = 0, cfClosingTotal = 0
+    if (cf?.id) {
+      const openFav = (cf.opening_favourable_banks || []).reduce((a, b) => a + num(b.amount), 0)
+      const openOD  = (cf.opening_overdraft_banks  || []).reduce((a, b) => a + num(b.amount), 0)
+      cfOpeningTotal = num(cf.opening_cash_in_hand) + openFav - openOD
+      cfTotalReceipts = [
+        cf.receipt_employment_income, cf.receipt_interest_fds, cf.receipt_interest_savings,
+        cf.receipt_rent_income, cf.receipt_tb_securities, cf.receipt_sale_shares,
+        cf.receipt_dividend_income, cf.receipt_drawings_sole_partner, cf.receipt_bank_loan,
+        cf.receipt_other_loans, cf.receipt_sale_land_building, cf.receipt_sale_motor_vehicle,
+        cf.receipt_sale_other_assets,
+      ].reduce((a, v) => a + num(v), 0)
+      cfTotalCashAvailable = cfOpeningTotal + cfTotalReceipts
+      cfTotalPayments = [
+        cf.payment_purchase_land_building, cf.payment_purchase_motor_vehicle,
+        cf.payment_purchase_other_assets, cf.payment_repayment_bank_loan,
+        cf.payment_lease_rentals, cf.payment_jewellery_gems, cf.payment_other_loans,
+        cf.payment_wht, cf.payment_income_tax, cf.payment_apit,
+        cf.payment_investment_shares, cf.payment_loans_given_others,
+      ].reduce((a, v) => a + num(v), 0)
+      cfNetCash = cfTotalCashAvailable - cfTotalPayments
+      const closeFav = (cf.closing_favourable_banks || []).reduce((a, b) => a + num(b.amount), 0)
+      const closeOD  = (cf.closing_overdraft_banks  || []).reduce((a, b) => a + num(b.amount), 0)
+      cfClosingTotal = num(cf.closing_cash_in_hand) + closeFav - closeOD
+    }
 
     const hasAssets = (
-      s.immovable_properties?.length ||
-      s.motor_vehicles?.length ||
-      s.bank_balances?.length ||
-      s.shares_stocks?.length ||
-      s.cash_in_hand?.amount > 0 ||
-      s.loans_given?.length ||
-      s.gold_jewellery?.value > 0 ||
-      s.business_properties?.length ||
-      s.other_assets?.length ||
-      s.disposals?.length
+      s.immovable_properties?.length || s.motor_vehicles?.length ||
+      s.bank_balances?.length || s.shares_stocks?.length ||
+      num(s.cash_in_hand?.amount) > 0 || s.loans_given?.length ||
+      num(s.gold_jewellery?.value) > 0 || s.business_properties?.length ||
+      s.other_assets?.length || s.disposals?.length
     )
-
     const hasLiabilities = s.liabilities?.length > 0
+    const hasCashFlow = cf?.id && (cfOpeningTotal + cfTotalReceipts + cfTotalPayments > 0)
+
+    // ── Reusable inline helpers ──
+    function SubBar({ label, value }) {
+      return (
+        <div className="flex justify-between items-center py-2 bg-brand-black rounded-lg px-3 my-2">
+          <span className="text-sm font-semibold text-white">{label}</span>
+          <span className="font-mono text-sm font-bold text-white">{formatCurrency(value)}</span>
+        </div>
+      )
+    }
+    function SecLabel({ label }) {
+      return <p className="text-xs font-semibold text-brand-gray uppercase tracking-wider mb-2 mt-4 pb-1 border-b border-brand-gray-border/40">{label}</p>
+    }
+    function LineRow({ label, value, deduction, dimmed }) {
+      if (num(value) === 0) return null
+      return (
+        <div className="flex justify-between items-center py-1.5 border-b border-brand-gray-border/50 pl-3">
+          <span className={`text-sm ${dimmed ? 'text-brand-gray/50' : 'text-brand-gray'}`}>{label}</span>
+          <span className={`font-mono text-sm ${dimmed ? 'text-brand-gray/50' : 'text-white'}`}>
+            {deduction ? `(${formatCurrency(value)})` : formatCurrency(value)}
+          </span>
+        </div>
+      )
+    }
+    function CfLineRow({ label, value, deduction }) {
+      if (num(value) === 0) return null
+      return (
+        <div className="flex justify-between items-center py-1.5 border-b border-brand-gray-border/40 pl-3">
+          <span className="text-sm text-brand-gray">{label}</span>
+          <span className="font-mono text-sm text-white">
+            {deduction ? `(${formatCurrency(value)})` : formatCurrency(value)}
+          </span>
+        </div>
+      )
+    }
 
     return (
       <div className="max-w-3xl mx-auto animate-fade-in">
@@ -204,7 +293,7 @@ export default function ClientConfirmation() {
           subtitle={`${s.tax_year_label} · Please review all details before confirming`}
         />
 
-        {/* ── Tax Computation ── */}
+        {/* ── 1. Tax Computation ── */}
         <div className="card mb-4 border-brand-yellow/30">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-brand-yellow/15 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -216,33 +305,88 @@ export default function ClientConfirmation() {
             </div>
           </div>
 
-          <div className="space-y-0">
-            {[
-              ['Total Assessable Income', s.total_assessable_income, false],
-              ['Total Qualifying Payments', s.total_qualifying_payments, false],
-              ['Personal Relief', s.personal_relief, false],
-              ['Rent Relief', s.rent_relief, false],
-              ['Taxable Income', s.net_taxable_income, false],
-              ['Gross Tax', s.gross_tax, false],
-              ['Total Tax Credits', s.total_tax_credits, false],
-            ].map(([label, val]) =>
-              parseFloat(val) > 0 ? (
-                <div key={label} className="flex justify-between items-center py-2 border-b border-brand-gray-border">
-                  <span className="text-sm text-brand-gray">{label}</span>
-                  <span className="font-mono text-sm text-white">{formatCurrency(val)}</span>
+          {/* A. Income Sources */}
+          <SecLabel label="A. Income Sources" />
+          <LineRow label="Employment Income"            value={s.local_employment?.amount} />
+          <LineRow label="Foreign Income"               value={foreignTotal} />
+          <LineRow label="Terminal Benefit"             value={s.terminal_benefit?.amount} />
+          <LineRow label="Rent Income (Gross)"          value={s.rent_income?.gross_amount} />
+          <LineRow label="Interest Income"              value={s.interest_income?.amount} />
+          <LineRow label="Dividend Income (Taxable)"    value={s.dividend_income?.amount} />
+          <LineRow label="Sole Proprietorship Income"   value={s.sole_proprietorship?.amount} />
+          <LineRow label="Other Income"                 value={s.other_income?.amount} />
+          {num(s.dividend_income?.exempt_amount) > 0 && (
+            <LineRow label="Exempt Dividend Income (excluded from tax)" value={s.dividend_income.exempt_amount} dimmed />
+          )}
+          <SubBar label="Total Assessable Income" value={s.total_assessable_income} />
+
+          {/* B. Deductions & Reliefs */}
+          {(num(s.total_qualifying_payments) > 0 || num(s.personal_relief) > 0 || num(s.rent_relief) > 0) && (
+            <>
+              <SecLabel label="B. Deductions &amp; Reliefs" />
+              <LineRow label="Donation — Charitable Institutions" value={s.qualifying_payments?.donation_charitable} deduction />
+              <LineRow label="Donation — Government"              value={s.qualifying_payments?.donation_government} deduction />
+              <LineRow label="Solar Panel Expenditure"            value={s.qualifying_payments?.solar_panels_expenditure} deduction />
+              <LineRow label="Personal Relief"                    value={s.personal_relief} deduction />
+              <LineRow label="Rent Relief (25% of gross rent)"   value={s.rent_relief} deduction />
+            </>
+          )}
+          <SubBar label="Taxable Income" value={s.net_taxable_income} />
+
+          {/* C. Foreign Income Tax */}
+          {foreignTotal > 0 && (
+            <>
+              <SecLabel label="C. Foreign Income Tax (Flat 15%)" />
+              <LineRow label="Foreign Income"            value={foreignTotal} />
+              <LineRow label="Gross Tax @ 15%"           value={foreignTotal * 0.15} />
+              <LineRow label="Foreign Tax Paid Abroad"   value={s.foreign_income?.foreign_tax_paid} deduction />
+              <LineRow label="Net Foreign Income Tax"    value={s.foreign_income_tax} />
+            </>
+          )}
+
+          {/* D. Tax Slab Breakdown */}
+          {s.slab_breakdown?.length > 0 && (
+            <>
+              <SecLabel label="D. Tax on Taxable Income" />
+              {s.slab_breakdown.map((sl, i) => (
+                <div key={i} className="flex justify-between items-center py-1.5 border-b border-brand-gray-border/50 pl-3">
+                  <span className="text-sm text-brand-gray">{sl.label}</span>
+                  <span className="font-mono text-sm text-white">{formatCurrency(sl.tax)}</span>
                 </div>
-              ) : null
-            )}
-            <div className="flex justify-between items-center py-3 bg-brand-yellow/5 px-3 rounded-lg -mx-3 mt-2">
-              <span className="text-sm font-semibold text-white flex items-center gap-2">
-                <TrendingUp size={14} className="text-brand-yellow" /> Net Tax Payable
-              </span>
-              <span className="font-mono text-xl text-brand-yellow font-bold">{formatCurrency(s.net_tax_payable)}</span>
-            </div>
+              ))}
+            </>
+          )}
+          {num(s.gross_tax) > 0 && <SubBar label="Gross Tax" value={s.gross_tax} />}
+
+          {/* E. Tax Credits */}
+          {num(s.total_tax_credits) > 0 && (
+            <>
+              <SecLabel label="E. Tax Credits" />
+              <LineRow label="APIT on Salary"            value={s.tax_credits?.apit_on_salary} deduction />
+              <LineRow label="WHT on Rent Income"        value={s.rent_income?.wht_deducted} deduction />
+              <LineRow label="WHT on Interest Income"    value={s.interest_income?.wht_deducted} deduction />
+              <LineRow label="WHT Certificates"          value={s.tax_credits?.wht_rent_interest_service} deduction />
+              <LineRow label="Partnership Tax Credit"    value={s.tax_credits?.partnership_tax_credit} deduction />
+              {selfAssessTotal > 0 && (
+                <div className="flex justify-between items-center py-1.5 border-b border-brand-gray-border/50 pl-3">
+                  <span className="text-sm text-brand-gray">Self-Assessment Payments</span>
+                  <span className="font-mono text-sm text-white">({formatCurrency(selfAssessTotal)})</span>
+                </div>
+              )}
+              <SubBar label="Total Tax Credits" value={s.total_tax_credits} />
+            </>
+          )}
+
+          {/* Net Tax Payable */}
+          <div className="flex justify-between items-center py-3 bg-brand-yellow/5 px-3 rounded-lg mt-2">
+            <span className="text-sm font-semibold text-white flex items-center gap-2">
+              <TrendingUp size={14} className="text-brand-yellow" /> Net Tax Payable
+            </span>
+            <span className="font-mono text-xl text-brand-yellow font-bold">{formatCurrency(s.net_tax_payable)}</span>
           </div>
         </div>
 
-        {/* ── Assets ── */}
+        {/* ── 2. Assets ── */}
         {hasAssets && (
           <div className="card mb-4">
             <p className="text-sm font-bold text-white mb-3 flex items-center gap-2">
@@ -252,10 +396,10 @@ export default function ClientConfirmation() {
             <Section title="Immovable Properties" icon={Home} count={s.immovable_properties?.length}>
               {s.immovable_properties?.map((p, i) => (
                 <AssetCard key={i}>
-                  <KVRow label="Property" value={p.situation_of_property} />
+                  <KVRow label="Property"      value={p.situation_of_property} />
                   <KVRow label="Date Acquired" value={formatDate(p.date_of_acquisition)} />
-                  <KVRow label="Cost" value={formatCurrency(p.cost)} />
-                  <KVRow label="Market Value" value={formatCurrency(p.market_value)} />
+                  <KVRow label="Cost"          value={formatCurrency(p.cost)} />
+                  <KVRow label="Market Value"  value={formatCurrency(p.market_value)} />
                 </AssetCard>
               ))}
             </Section>
@@ -263,9 +407,9 @@ export default function ClientConfirmation() {
             <Section title="Motor Vehicles" icon={Car} count={s.motor_vehicles?.length}>
               {s.motor_vehicles?.map((v, i) => (
                 <AssetCard key={i}>
-                  <KVRow label="Description" value={v.description} />
-                  <KVRow label="Reg. No." value={v.registration_no} />
-                  <KVRow label="Date Acquired" value={formatDate(v.date_of_acquisition)} />
+                  <KVRow label="Description"         value={v.description} />
+                  <KVRow label="Reg. No."            value={v.registration_no} />
+                  <KVRow label="Date Acquired"       value={formatDate(v.date_of_acquisition)} />
                   <KVRow label="Cost / Market Value" value={formatCurrency(v.cost_market_value)} />
                 </AssetCard>
               ))}
@@ -274,28 +418,28 @@ export default function ClientConfirmation() {
             <Section title="Bank Balances" icon={Landmark} count={s.bank_balances?.length}>
               {s.bank_balances?.map((b, i) => (
                 <AssetCard key={i}>
-                  <KVRow label="Bank" value={b.bank_name} />
-                  <KVRow label="Account No." value={b.account_no} />
+                  <KVRow label="Bank"            value={b.bank_name} />
+                  <KVRow label="Account No."     value={b.account_no} />
                   <KVRow label="Amount Invested" value={formatCurrency(b.amount_invested)} />
-                  <KVRow label="Interest" value={formatCurrency(b.interest)} />
-                  <KVRow label="Balance" value={formatCurrency(b.balance)} />
+                  <KVRow label="Interest"        value={formatCurrency(b.interest)} />
+                  <KVRow label="Balance"         value={formatCurrency(b.balance)} />
                 </AssetCard>
               ))}
             </Section>
 
-            <Section title="Shares & Stocks" icon={PieChart} count={s.shares_stocks?.length}>
+            <Section title="Shares &amp; Stocks" icon={PieChart} count={s.shares_stocks?.length}>
               {s.shares_stocks?.map((sh, i) => (
                 <AssetCard key={i}>
-                  <KVRow label="Description" value={sh.description} />
-                  <KVRow label="No. of Shares" value={sh.no_of_shares?.toString()} />
-                  <KVRow label="Date Acquired" value={formatDate(sh.date_of_acquisition)} />
+                  <KVRow label="Description"         value={sh.description} />
+                  <KVRow label="No. of Shares"       value={sh.no_of_shares?.toString()} />
+                  <KVRow label="Date Acquired"       value={formatDate(sh.date_of_acquisition)} />
                   <KVRow label="Cost / Market Value" value={formatCurrency(sh.cost_market_value)} />
                   <KVRow label="Net Dividend Income" value={formatCurrency(sh.net_dividend_income)} />
                 </AssetCard>
               ))}
             </Section>
 
-            {parseFloat(s.cash_in_hand?.amount) > 0 && (
+            {num(s.cash_in_hand?.amount) > 0 && (
               <div className="border border-brand-gray-border rounded-xl overflow-hidden mb-3">
                 <div className="flex items-center gap-2 px-4 py-3 bg-brand-black-soft">
                   <Wallet size={15} className="text-brand-yellow" />
@@ -314,12 +458,12 @@ export default function ClientConfirmation() {
               {s.loans_given?.map((l, i) => (
                 <AssetCard key={i}>
                   <KVRow label="Borrower" value={l.borrower_name} />
-                  <KVRow label="Amount" value={formatCurrency(l.amount)} />
+                  <KVRow label="Amount"   value={formatCurrency(l.amount)} />
                 </AssetCard>
               ))}
             </Section>
 
-            {parseFloat(s.gold_jewellery?.value) > 0 && (
+            {num(s.gold_jewellery?.value) > 0 && (
               <div className="border border-brand-gray-border rounded-xl overflow-hidden mb-3">
                 <div className="flex items-center gap-2 px-4 py-3 bg-brand-black-soft">
                   <Package size={15} className="text-brand-yellow" />
@@ -327,7 +471,7 @@ export default function ClientConfirmation() {
                 </div>
                 <div className="px-4 py-3 space-y-0.5">
                   <KVRow label="Description" value={s.gold_jewellery?.description} />
-                  <KVRow label="Value" value={formatCurrency(s.gold_jewellery?.value)} />
+                  <KVRow label="Value"        value={formatCurrency(s.gold_jewellery?.value)} />
                 </div>
               </div>
             )}
@@ -335,9 +479,9 @@ export default function ClientConfirmation() {
             <Section title="Business Properties" icon={Building2} count={s.business_properties?.length}>
               {s.business_properties?.map((bp, i) => (
                 <AssetCard key={i}>
-                  <KVRow label="Business" value={bp.name_of_business} />
-                  <KVRow label="Current Account Balance" value={formatCurrency(bp.current_account_balance)} />
-                  <KVRow label="Capital Account Balance" value={formatCurrency(bp.capital_account_balance)} />
+                  <KVRow label="Business"                 value={bp.name_of_business} />
+                  <KVRow label="Current Account Balance"  value={formatCurrency(bp.current_account_balance)} />
+                  <KVRow label="Capital Account Balance"  value={formatCurrency(bp.capital_account_balance)} />
                 </AssetCard>
               ))}
             </Section>
@@ -345,10 +489,10 @@ export default function ClientConfirmation() {
             <Section title="Other Assets" icon={Package} count={s.other_assets?.length}>
               {s.other_assets?.map((a, i) => (
                 <AssetCard key={i}>
-                  <KVRow label="Description" value={a.description} />
+                  <KVRow label="Description"      value={a.description} />
                   <KVRow label="Acquisition Type" value={a.acquisition_type} />
-                  <KVRow label="Date Acquired" value={formatDate(a.date_of_acquisition)} />
-                  <KVRow label="Cost / Value" value={formatCurrency(a.cost_value)} />
+                  <KVRow label="Date Acquired"    value={formatDate(a.date_of_acquisition)} />
+                  <KVRow label="Cost / Value"     value={formatCurrency(a.cost_value)} />
                 </AssetCard>
               ))}
             </Section>
@@ -356,17 +500,17 @@ export default function ClientConfirmation() {
             <Section title="Disposal of Assets" icon={Package} count={s.disposals?.length}>
               {s.disposals?.map((d, i) => (
                 <AssetCard key={i}>
-                  <KVRow label="Description" value={d.description} />
+                  <KVRow label="Description"     value={d.description} />
                   <KVRow label="Date of Disposal" value={formatDate(d.date_of_disposal)} />
-                  <KVRow label="Sales Proceed" value={formatCurrency(d.sales_proceed)} />
-                  <KVRow label="Cost" value={formatCurrency(d.cost)} />
+                  <KVRow label="Sales Proceed"   value={formatCurrency(d.sales_proceed)} />
+                  <KVRow label="Cost"            value={formatCurrency(d.cost)} />
                 </AssetCard>
               ))}
             </Section>
           </div>
         )}
 
-        {/* ── Liabilities ── */}
+        {/* ── 3. Liabilities ── */}
         {hasLiabilities && (
           <div className="card mb-4">
             <p className="text-sm font-bold text-white mb-3 flex items-center gap-2">
@@ -374,21 +518,137 @@ export default function ClientConfirmation() {
             </p>
             {s.liabilities?.map((lib, i) => (
               <div key={i} className="bg-brand-black rounded-lg p-3 mb-2 last:mb-0 space-y-0.5">
-                <KVRow label="Description" value={lib.description} />
-                <KVRow label="Security" value={lib.security_on_liability} />
-                <KVRow label="Date of Commencement" value={formatDate(lib.date_of_commencement)} />
-                <KVRow label="Original Amount" value={formatCurrency(lib.original_amount)} />
-                <KVRow label="Balance as at Date" value={formatCurrency(lib.amount_as_at_date)} />
-                <KVRow label="Repaid During Year" value={formatCurrency(lib.amount_repaid_during_year)} />
+                <KVRow label="Description"           value={lib.description} />
+                <KVRow label="Security"              value={lib.security_on_liability} />
+                <KVRow label="Date of Commencement"  value={formatDate(lib.date_of_commencement)} />
+                <KVRow label="Original Amount"       value={formatCurrency(lib.original_amount)} />
+                <KVRow label="Balance as at Date"    value={formatCurrency(lib.amount_as_at_date)} />
+                <KVRow label="Repaid During Year"    value={formatCurrency(lib.amount_repaid_during_year)} />
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ── 4. Receipt & Payment Account ── */}
+        {hasCashFlow && (
+          <div className="card mb-4">
+            <p className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+              <Landmark size={15} className="text-brand-yellow" /> Receipt &amp; Payment Account
+            </p>
+
+            {/* Opening Balances */}
+            <p className="text-xs font-semibold text-brand-gray uppercase tracking-wider mb-2 pb-1 border-b border-brand-gray-border/40">
+              Opening Balances — as at 1st April
+            </p>
+            <CfLineRow label="Cash in Hand" value={cf.opening_cash_in_hand} />
+            {(cf.opening_favourable_banks || []).map((b, i) => (
+              <div key={i} className="flex justify-between items-center py-1.5 border-b border-brand-gray-border/40 pl-3">
+                <span className="text-sm text-brand-gray">{b.bank_name || 'Bank'}{b.account_no ? ` (${b.account_no})` : ''}</span>
+                <span className="font-mono text-sm text-white">{formatCurrency(b.amount)}</span>
+              </div>
+            ))}
+            {(cf.opening_overdraft_banks || []).map((b, i) => (
+              <div key={`od-${i}`} className="flex justify-between items-center py-1.5 border-b border-brand-gray-border/40 pl-3">
+                <span className="text-sm text-brand-gray">{b.bank_name || 'Bank'} — Overdraft</span>
+                <span className="font-mono text-sm text-white">({formatCurrency(b.amount)})</span>
+              </div>
+            ))}
+            <div className="flex justify-between items-center py-2 bg-brand-black rounded-lg px-3 my-2">
+              <span className="text-sm font-semibold text-white">Opening Cash Balance</span>
+              <span className="font-mono text-sm font-bold text-white">{formatCurrency(cfOpeningTotal)}</span>
+            </div>
+
+            {/* Receipts */}
+            {cfTotalReceipts > 0 && (
+              <>
+                <p className="text-xs font-semibold text-brand-gray uppercase tracking-wider mb-2 mt-4 pb-1 border-b border-brand-gray-border/40">
+                  Receipts During the Year
+                </p>
+                <CfLineRow label="Employment Income"                    value={cf.receipt_employment_income} />
+                <CfLineRow label="Interest on Fixed Deposits"           value={cf.receipt_interest_fds} />
+                <CfLineRow label="Interest on Savings Accounts"         value={cf.receipt_interest_savings} />
+                <CfLineRow label="Rent Income"                          value={cf.receipt_rent_income} />
+                <CfLineRow label="Income — T/B &amp; Securities"        value={cf.receipt_tb_securities} />
+                <CfLineRow label="Sale of Shares"                       value={cf.receipt_sale_shares} />
+                <CfLineRow label="Dividend Income"                      value={cf.receipt_dividend_income} />
+                <CfLineRow label="Drawings — Sole / Partnership"        value={cf.receipt_drawings_sole_partner} />
+                <CfLineRow label="Bank Loan Received"                   value={cf.receipt_bank_loan} />
+                <CfLineRow label="Other Loans Received"                 value={cf.receipt_other_loans} />
+                <CfLineRow label="Sale of Land / Building"              value={cf.receipt_sale_land_building} />
+                <CfLineRow label="Sale of Motor Vehicle"                value={cf.receipt_sale_motor_vehicle} />
+                <CfLineRow label="Sale of Other Assets"                 value={cf.receipt_sale_other_assets} />
+                <div className="flex justify-between items-center py-2 bg-brand-black rounded-lg px-3 my-2">
+                  <span className="text-sm font-semibold text-white">Total Cash Available</span>
+                  <span className="font-mono text-sm font-bold text-white">{formatCurrency(cfTotalCashAvailable)}</span>
+                </div>
+              </>
+            )}
+
+            {/* Payments */}
+            {cfTotalPayments > 0 && (
+              <>
+                <p className="text-xs font-semibold text-brand-gray uppercase tracking-wider mb-2 mt-4 pb-1 border-b border-brand-gray-border/40">
+                  Payments During the Year
+                </p>
+                <CfLineRow label="Purchase of Land / Building"   value={cf.payment_purchase_land_building} deduction />
+                <CfLineRow label="Purchase of Motor Vehicle"     value={cf.payment_purchase_motor_vehicle} deduction />
+                <CfLineRow label="Purchase of Other Assets"      value={cf.payment_purchase_other_assets} deduction />
+                <CfLineRow label="Repayment of Bank Loan"        value={cf.payment_repayment_bank_loan} deduction />
+                <CfLineRow label="Lease Rentals"                 value={cf.payment_lease_rentals} deduction />
+                <CfLineRow label="Purchase of Jewellery / Gems"  value={cf.payment_jewellery_gems} deduction />
+                <CfLineRow label="Payment of Other Loans"        value={cf.payment_other_loans} deduction />
+                <CfLineRow label="WHT"                           value={cf.payment_wht} deduction />
+                <CfLineRow label="Income Tax Payments"           value={cf.payment_income_tax} deduction />
+                <CfLineRow label="APIT"                          value={cf.payment_apit} deduction />
+                <CfLineRow label="Investment in Shares"          value={cf.payment_investment_shares} deduction />
+                <CfLineRow label="Loans Given to Others"         value={cf.payment_loans_given_others} deduction />
+                <div className="flex justify-between items-center py-2 bg-brand-black rounded-lg px-3 my-2">
+                  <span className="text-sm font-semibold text-white">Net Cash Available — 31st March</span>
+                  <span className="font-mono text-sm font-bold text-white">{formatCurrency(cfNetCash)}</span>
+                </div>
+              </>
+            )}
+
+            {/* Closing Balances */}
+            {cfClosingTotal > 0 && (
+              <>
+                <p className="text-xs font-semibold text-brand-gray uppercase tracking-wider mb-2 mt-4 pb-1 border-b border-brand-gray-border/40">
+                  Closing Balances — as at 31st March
+                </p>
+                <CfLineRow label="Cash in Hand" value={cf.closing_cash_in_hand} />
+                {(cf.closing_favourable_banks || []).map((b, i) => (
+                  <div key={i} className="flex justify-between items-center py-1.5 border-b border-brand-gray-border/40 pl-3">
+                    <span className="text-sm text-brand-gray">{b.bank_name || 'Bank'}{b.account_no ? ` (${b.account_no})` : ''}</span>
+                    <span className="font-mono text-sm text-white">{formatCurrency(b.amount)}</span>
+                  </div>
+                ))}
+                {(cf.closing_overdraft_banks || []).map((b, i) => (
+                  <div key={`cod-${i}`} className="flex justify-between items-center py-1.5 border-b border-brand-gray-border/40 pl-3">
+                    <span className="text-sm text-brand-gray">{b.bank_name || 'Bank'} — Overdraft</span>
+                    <span className="font-mono text-sm text-white">({formatCurrency(b.amount)})</span>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center py-2 bg-brand-black rounded-lg px-3 my-2">
+                  <span className="text-sm font-semibold text-white">Closing Cash Balance</span>
+                  <span className="font-mono text-sm font-bold text-white">{formatCurrency(cfClosingTotal)}</span>
+                </div>
+              </>
+            )}
+
+            {/* Living Expenses */}
+            {num(cf.living_expenses_year) > 0 && (
+              <div className="flex justify-between items-center py-2 mt-1 border-t border-brand-gray-border">
+                <span className="text-sm text-brand-gray">Living Expenses for the Year</span>
+                <span className="font-mono text-sm text-white">{formatCurrency(cf.living_expenses_year)}</span>
+              </div>
+            )}
           </div>
         )}
 
         {/* ── Confirm button ── */}
         <div className="card">
           <p className="text-sm text-brand-gray mb-4">
-            By confirming, you acknowledge that the tax computation and all asset/liability details above are correct and authorise your consultant to proceed with the final submission.
+            By confirming, you acknowledge that the tax computation and all details above are correct and authorise your consultant to proceed with the final submission.
           </p>
           <div className="flex gap-3 justify-end flex-wrap">
             <button onClick={() => navigate('/client/dashboard')} className="btn-secondary">Later</button>

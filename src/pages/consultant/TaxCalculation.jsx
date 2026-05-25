@@ -1500,6 +1500,16 @@ export default function TaxCalculation() {
                 {s?.payment_updated_at && (
                   <p className="text-xs text-brand-gray">Updated: {formatDate(s.payment_updated_at)}</p>
                 )}
+                {s?.payment_slip_url && (
+                  <a
+                    href={s.payment_slip_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-1.5 text-xs text-brand-success hover:underline"
+                  >
+                    <Download size={12} /> View Payment Slip
+                  </a>
+                )}
               </div>
             </div>
 
