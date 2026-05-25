@@ -586,7 +586,7 @@ export default function TaxCalculation() {
       : computedGross
 
     const credits    = D('total_tax_credits')
-    const foreignTax = D('foreign_income_tax')
+    const foreignTax = D('foreign_income_tax')   // net flat-15% foreign tax (after foreign tax paid credit)
     const netTax     = Math.max(0, grossTax - credits) + foreignTax
 
     return {
@@ -1369,6 +1369,42 @@ export default function TaxCalculation() {
               <EditableAmount label="Less: Personal Relief" value={derivedCalc.personal_relief} fieldKey="personal_relief" onSave={handleFieldUpdate} indent />
               <EditableAmount label="Less: Rent Relief (25%)" value={derivedCalc.rent_relief} fieldKey="rent_relief" onSave={handleFieldUpdate} indent />
               <EditableAmount label="Taxable Income" value={derivedCalc.net_taxable_income} fieldKey="net_taxable_income" onSave={handleFieldUpdate} highlight />
+
+              {/* Foreign Income Tax — Flat 15% (shown after taxable income, before progressive tax) */}
+              {(() => {
+                const fi = s?.foreign_income || {}
+                const fiAmt = parseFloat(fi.employment_service_fee || 0) +
+                              parseFloat(fi.foreign_business_income || 0) +
+                              parseFloat(fi.other_foreign_income || 0)
+                if (fiAmt <= 0) return null
+                const fiGross = fiAmt * 0.15
+                const fiPaid  = parseFloat(fi.foreign_tax_paid || 0)
+                const fiNet   = Math.max(0, fiGross - fiPaid)
+                return (
+                  <div className="mt-3 bg-brand-black-soft border border-brand-gray-border rounded-xl p-3">
+                    <p className="text-xs text-brand-yellow font-semibold uppercase tracking-wider mb-2">Foreign Income Tax (Flat 15%)</p>
+                    <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50">
+                      <span className="text-xs text-brand-gray">Foreign Income</span>
+                      <span className="text-xs font-mono text-white">{formatCurrency(fiAmt)}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50">
+                      <span className="text-xs text-brand-gray">Tax @ 15%</span>
+                      <span className="text-xs font-mono text-white">{formatCurrency(fiGross)}</span>
+                    </div>
+                    {fiPaid > 0 && (
+                      <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50 pl-3">
+                        <span className="text-xs text-brand-gray">Less: Foreign Tax Paid (cage 901)</span>
+                        <span className="text-xs font-mono text-white">({formatCurrency(fiPaid)})</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center pt-1.5">
+                      <span className="text-xs font-semibold text-white">Net Foreign Tax Payable</span>
+                      <span className="text-xs font-mono font-bold text-brand-yellow">{formatCurrency(fiNet)}</span>
+                    </div>
+                  </div>
+                )
+              })()}
+
               <div className="h-px bg-brand-gray-border my-3" />
 
               {/* Slab breakdown — live from derivedCalc */}
@@ -1422,40 +1458,6 @@ export default function TaxCalculation() {
                 </div>
               )}
               <EditableAmount label="Less: Total Tax Credits" value={derivedCalc.total_tax_credits} fieldKey="total_tax_credits" onSave={handleFieldUpdate} indent />
-
-              {/* Foreign Income Tax @ 15% flat — shown separately above balance */}
-              {(() => {
-                const fiAmount = parseFloat(s?.foreign_income?.employment_service_fee || 0) + parseFloat(s?.foreign_income?.other_foreign_income || 0)
-                const fiPaid = parseFloat(s?.foreign_income?.foreign_tax_paid || 0)
-                if (fiAmount <= 0) return null
-                return (
-                  <div className="mt-3 border border-brand-yellow/20 rounded-xl overflow-hidden">
-                    <div className="bg-brand-yellow/5 px-3 py-2 border-b border-brand-yellow/10">
-                      <p className="text-xs text-brand-yellow font-semibold uppercase tracking-wider">Foreign Income Tax (Flat 15%)</p>
-                    </div>
-                    <div className="px-3 py-2 space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-brand-gray">Foreign Income</span>
-                        <span className="font-mono text-white">{formatCurrency(fiAmount)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-brand-gray">Tax @ 15%</span>
-                        <span className="font-mono text-white">{formatCurrency(fiAmount * 0.15)}</span>
-                      </div>
-                      {fiPaid > 0 && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-brand-gray pl-2">Less: Foreign Tax Paid</span>
-                          <span className="font-mono text-white">({formatCurrency(fiPaid)})</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-xs font-semibold border-t border-brand-yellow/20 pt-1 mt-1">
-                        <span className="text-white">Net Foreign Tax Payable</span>
-                        <EditableAmount label="" value={derivedCalc.foreign_income_tax} fieldKey="foreign_income_tax" onSave={handleFieldUpdate} />
-                      </div>
-                    </div>
-                  </div>
-                )
-              })()}
 
               <div className="mt-4 bg-brand-yellow/10 border border-brand-yellow/30 rounded-xl p-4">
                 <p className="text-xs text-brand-gray uppercase tracking-wider mb-2">BALANCE TAX PAYABLE</p>
