@@ -586,6 +586,8 @@ export default function TaxCalculation() {
       : computedGross
 
     const credits    = D('total_tax_credits')
+    const whtRent    = D('wht_rent')
+    const whtInt     = D('wht_interest')
     const foreignTax = D('foreign_income_tax')   // net flat-15% foreign tax (after foreign tax paid credit)
     const netTax     = Math.max(0, grossTax - credits) + foreignTax
 
@@ -599,6 +601,8 @@ export default function TaxCalculation() {
       gross_tax:                 grossTax,
       slab_breakdown,
       total_tax_credits:         credits,
+      wht_rent:                  whtRent,
+      wht_interest:              whtInt,
       foreign_income_tax:        foreignTax,
       net_tax_payable:           pendingUpdates.net_tax_payable !== undefined
         ? (parseFloat(pendingUpdates.net_tax_payable) || 0)
@@ -1008,6 +1012,15 @@ export default function TaxCalculation() {
                 {editingSection === 'tax_credits' && (
                   <SectionEditForm fields={SECTION_FIELDS.tax_credits.fields} data={s?.tax_credits}
                     onSave={d => saveSection('tax_credits', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
+                )}
+
+                {/* ── WHT from Income Sources ── */}
+                {(parseFloat(s?.rent_income?.wht_deducted || 0) > 0 || parseFloat(s?.interest_income?.wht_deducted || 0) > 0) && (
+                  <>
+                    <SubHeading>WHT Deducted at Source</SubHeading>
+                    <AmountRow label="WHT on Rent Income" value={s?.rent_income?.wht_deducted} sub />
+                    <AmountRow label="WHT on Interest Income" value={s?.interest_income?.wht_deducted} sub />
+                  </>
                 )}
 
                 {/* ── WHT Certificates ── */}
@@ -1437,6 +1450,18 @@ export default function TaxCalculation() {
                 <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
                   <span className="text-xs text-brand-gray">APIT on Salary</span>
                   <span className="text-xs font-mono text-white">({formatCurrency(s.tax_credits.apit_on_salary)})</span>
+                </div>
+              )}
+              {parseFloat(s?.rent_income?.wht_deducted || 0) > 0 && (
+                <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
+                  <span className="text-xs text-brand-gray">WHT on Rent Income</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency(s.rent_income.wht_deducted)})</span>
+                </div>
+              )}
+              {parseFloat(s?.interest_income?.wht_deducted || 0) > 0 && (
+                <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
+                  <span className="text-xs text-brand-gray">WHT on Interest Income</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency(s.interest_income.wht_deducted)})</span>
                 </div>
               )}
               {(s?.wht_certificates || []).map(cert => (
