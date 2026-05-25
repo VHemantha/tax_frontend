@@ -313,7 +313,9 @@ export default function ClientConfirmation() {
           <LineRow label="Rent Income (Gross)"          value={s.rent_income?.gross_amount} />
           <LineRow label="Interest Income"              value={s.interest_income?.amount} />
           <LineRow label="Dividend Income (Taxable)"    value={s.dividend_income?.amount} />
-          <LineRow label="Sole Proprietorship Income"   value={s.sole_proprietorship?.amount} />
+          {(s.sole_proprietorships || []).map((sp, i) => (
+            <LineRow key={sp.id ?? i} label={sp.business_name ? `Business Income — ${sp.business_name}` : 'Sole Proprietorship Income'} value={sp.amount} />
+          ))}
           <LineRow label="Other Income"                 value={s.other_income?.amount} />
           {num(s.dividend_income?.exempt_amount) > 0 && (
             <LineRow label="Exempt Dividend Income (excluded from tax)" value={s.dividend_income.exempt_amount} dimmed />

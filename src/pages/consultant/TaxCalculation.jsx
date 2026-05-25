@@ -588,6 +588,7 @@ export default function TaxCalculation() {
     const credits    = D('total_tax_credits')
     const whtRent    = D('wht_rent')
     const whtInt     = D('wht_interest')
+    const whtSoleProp = D('wht_sole_prop')
     const foreignTax = D('foreign_income_tax')   // net flat-15% foreign tax (after foreign tax paid credit)
     const netTax     = Math.max(0, grossTax - credits) + foreignTax
 
@@ -603,6 +604,7 @@ export default function TaxCalculation() {
       total_tax_credits:         credits,
       wht_rent:                  whtRent,
       wht_interest:              whtInt,
+      wht_sole_prop:             whtSoleProp,
       foreign_income_tax:        foreignTax,
       net_tax_payable:           pendingUpdates.net_tax_payable !== undefined
         ? (parseFloat(pendingUpdates.net_tax_payable) || 0)
@@ -935,17 +937,18 @@ export default function TaxCalculation() {
                 </>
               )}
 
-              {/* Sole Proprietorship */}
-              {s?.sole_proprietorship?.amount > 0 && (
+              {/* Sole Proprietorship — multi-entry */}
+              {(s?.sole_proprietorships || []).length > 0 && (
                 <>
-                  <SubHeading>Sole Proprietorship</SubHeading>
-                  <Row label="Business Name" value={s.sole_proprietorship.business_name} />
-                  <AmountRow label="Business Income" value={s.sole_proprietorship.amount} />
-                  {canEdit && (editingSection === 'sole_proprietorship' ? (
-                    <SectionEditForm fields={SECTION_FIELDS.sole_proprietorship.fields} data={s.sole_proprietorship}
-                      onSave={d => saveSection('sole_proprietorship', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
-                  ) : (
-                    <button onClick={() => setEditingSection('sole_proprietorship')} className="btn-ghost text-xs mt-1"><Pencil size={11} /> Edit</button>
+                  <SubHeading>Sole Proprietorship / Partnership</SubHeading>
+                  {(s.sole_proprietorships).map(sp => (
+                    <div key={sp.id} className="mb-1">
+                      <Row label="Business Name" value={sp.business_name} />
+                      <AmountRow label="Business Income" value={sp.amount} />
+                      {parseFloat(sp.wht_deducted || 0) > 0 && (
+                        <AmountRow label="WHT Deducted" value={sp.wht_deducted} sub />
+                      )}
+                    </div>
                   ))}
                 </>
               )}
@@ -1015,13 +1018,18 @@ export default function TaxCalculation() {
                 )}
 
                 {/* ── WHT from Income Sources ── */}
-                {(parseFloat(s?.rent_income?.wht_deducted || 0) > 0 || parseFloat(s?.interest_income?.wht_deducted || 0) > 0) && (
-                  <>
-                    <SubHeading>WHT Deducted at Source</SubHeading>
-                    <AmountRow label="WHT on Rent Income" value={s?.rent_income?.wht_deducted} sub />
-                    <AmountRow label="WHT on Interest Income" value={s?.interest_income?.wht_deducted} sub />
-                  </>
-                )}
+                {(() => {
+                  const spWHT = (s?.sole_proprietorships || []).reduce((sum, sp) => sum + parseFloat(sp.wht_deducted || 0), 0)
+                  const hasWHT = parseFloat(s?.rent_income?.wht_deducted || 0) > 0 || parseFloat(s?.interest_income?.wht_deducted || 0) > 0 || spWHT > 0
+                  return hasWHT ? (
+                    <>
+                      <SubHeading>WHT Deducted at Source</SubHeading>
+                      <AmountRow label="WHT on Rent Income" value={s?.rent_income?.wht_deducted} sub />
+                      <AmountRow label="WHT on Interest Income" value={s?.interest_income?.wht_deducted} sub />
+                      {spWHT > 0 && <AmountRow label="WHT on Business Income" value={spWHT} sub />}
+                    </>
+                  ) : null
+                })()}
 
                 {/* ── WHT Certificates ── */}
                 <SubHeading>WHT Credits by Income Category</SubHeading>
@@ -1464,6 +1472,12 @@ export default function TaxCalculation() {
                   <span className="text-xs font-mono text-white">({formatCurrency(s.interest_income.wht_deducted)})</span>
                 </div>
               )}
+              {(s?.sole_proprietorships || []).filter(sp => parseFloat(sp.wht_deducted || 0) > 0).map(sp => (
+                <div key={sp.id} className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
+                  <span className="text-xs text-brand-gray">WHT — {sp.business_name || 'Business Income'}</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency(sp.wht_deducted)})</span>
+                </div>
+              ))}
               {(s?.wht_certificates || []).map(cert => (
                 <div key={cert.id} className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
                   <span className="text-xs text-brand-gray">WHT — {cert.category_display}</span>

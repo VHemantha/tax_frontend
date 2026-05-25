@@ -7,7 +7,7 @@ import FileUpload from '../../../components/common/FileUpload'
 import {
   Save, ChevronRight, Briefcase, Globe, Gift,
   Home, Landmark, TrendingUp, Store, MoreHorizontal,
-  Receipt, CreditCard, Info
+  Receipt, CreditCard, Info, Plus, Trash2, Pencil, X, Check
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -374,13 +374,8 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
 
             {/* Sole Proprietorship */}
             <SubSection icon={Store} title="Sole Proprietorship / Partnership">
-              <FieldRow label="Business / Partnership Name">
-                <input {...regIncome('sole_business_name')} className="input-field" placeholder="Business name" disabled={isReadOnly} />
-              </FieldRow>
-              <FieldRow label="Net Income Amount" hint="Profit from business for the year">
-                <AmountInput name="sole_amount" control={controlIncome} disabled={isReadOnly} />
-              </FieldRow>
-              <div className="pt-2">
+              <SoleProprietorshipEntries submissionId={submissionId} isReadOnly={isReadOnly} onWHTChange={() => qc.invalidateQueries(['income-sole', submissionId])} />
+              <div className="pt-3">
                 <FileUpload label="Receipt & Payment Details / Finalised Partnership Accounts" documentType="partnership_accounts" section="income" {...fp} />
               </div>
             </SubSection>
@@ -496,17 +491,17 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
               <FieldRow label="APIT on Salary" hint="As per T10 certificate from employer">
                 <AmountInput name="apit_on_salary" control={controlTC} disabled={isReadOnly} />
               </FieldRow>
-              <FieldRow label="WHT on Rent / Interest / Service Fees" hint="Auto-calculated from Rent WHT + Interest WHT entered above">
+              <FieldRow label="WHT on Rent / Interest / Business" hint="Auto-calculated from WHT amounts entered above">
                 <div className="space-y-2">
                   <AmountInput name="wht_rent_interest_service" control={controlTC} disabled />
                   {liveWHTTotal > 0 && (
                     <ReliefPill
-                      label="WHT (Rent + Interest — auto)"
+                      label="WHT (Rent + Interest + Business — auto)"
                       value={`Rs. ${liveWHTTotal.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                     />
                   )}
                   {liveWHTTotal === 0 && (
-                    <p className="text-xs text-brand-gray">Enter WHT amounts in Rent Income and Interest Income above</p>
+                    <p className="text-xs text-brand-gray">Enter WHT amounts in the income sections above</p>
                   )}
                 </div>
               </FieldRow>
@@ -539,6 +534,188 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
         </button>
       </div>
 
+    </div>
+  )
+}
+
+
+/* ─── Sole Proprietorship multi-entry sub-component ─── */
+function SoleProprietorshipEntries({ submissionId, isReadOnly, onWHTChange }) {
+  const qc = useQueryClient()
+  const { data: entries = [], refetch } = useQuery({
+    queryKey: ['income-sole', submissionId],
+    queryFn:  () => api.get(`/tax/submissions/${submissionId}/income/sole-proprietorship/`).then(r => r.data),
+  })
+
+  const [modal, setModal] = useState(null) // null | { mode: 'add' } | { mode: 'edit', entry }
+  const [form, setForm] = useState({ business_name: '', amount: '', wht_deducted: '' })
+  const [saving, setSaving] = useState(false)
+
+  function openAdd() {
+    setForm({ business_name: '', amount: '', wht_deducted: '' })
+    setModal({ mode: 'add' })
+  }
+
+  function openEdit(entry) {
+    setForm({ business_name: entry.business_name || '', amount: entry.amount || '', wht_deducted: entry.wht_deducted || '' })
+    setModal({ mode: 'edit', entry })
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const payload = {
+        business_name: form.business_name,
+        amount: parseFloat(form.amount) || 0,
+        wht_deducted: parseFloat(form.wht_deducted) || 0,
+      }
+      if (modal.mode === 'add') {
+        await api.post(`/tax/submissions/${submissionId}/income/sole-proprietorship/`, payload)
+      } else {
+        await api.patch(`/tax/income/sole-proprietorship/${modal.entry.id}/`, payload)
+      }
+      await refetch()
+      qc.invalidateQueries(['income-sole', submissionId])
+      onWHTChange?.()
+      setModal(null)
+      toast.success(modal.mode === 'add' ? 'Business income added' : 'Business income updated')
+    } catch { toast.error('Failed to save') }
+    setSaving(false)
+  }
+
+  async function handleDelete(entry) {
+    try {
+      await api.delete(`/tax/income/sole-proprietorship/${entry.id}/`)
+      await refetch()
+      qc.invalidateQueries(['income-sole', submissionId])
+      onWHTChange?.()
+      toast.success('Removed')
+    } catch { toast.error('Failed to delete') }
+  }
+
+  const fmt = v => parseFloat(v || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  return (
+    <div className="space-y-3">
+      {entries.length > 0 && (
+        <div className="border border-brand-gray-border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-brand-black">
+              <tr>
+                <th className="text-left px-3 py-2 text-xs text-brand-gray font-medium">Business Name</th>
+                <th className="text-right px-3 py-2 text-xs text-brand-gray font-medium">Income (Rs.)</th>
+                <th className="text-right px-3 py-2 text-xs text-brand-gray font-medium">WHT (Rs.)</th>
+                {!isReadOnly && <th className="w-16" />}
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e, idx) => (
+                <tr key={e.id} className={idx % 2 === 0 ? 'bg-brand-black/20' : ''}>
+                  <td className="px-3 py-2 text-white">{e.business_name || '—'}</td>
+                  <td className="px-3 py-2 text-right font-mono text-white">{fmt(e.amount)}</td>
+                  <td className="px-3 py-2 text-right font-mono text-brand-yellow">{fmt(e.wht_deducted)}</td>
+                  {!isReadOnly && (
+                    <td className="px-2 py-2">
+                      <div className="flex gap-1 justify-end">
+                        <button type="button" onClick={() => openEdit(e)} className="p-1 rounded hover:bg-brand-gray/10 text-brand-gray hover:text-white transition-colors">
+                          <Pencil size={13} />
+                        </button>
+                        <button type="button" onClick={() => handleDelete(e)} className="p-1 rounded hover:bg-brand-red/10 text-brand-gray hover:text-brand-red transition-colors">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+            {entries.length > 1 && (
+              <tfoot className="border-t border-brand-gray-border bg-brand-black">
+                <tr>
+                  <td className="px-3 py-2 text-xs text-brand-gray font-semibold">Total</td>
+                  <td className="px-3 py-2 text-right font-mono text-brand-yellow text-xs font-semibold">
+                    {fmt(entries.reduce((s, e) => s + parseFloat(e.amount || 0), 0))}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono text-brand-yellow text-xs font-semibold">
+                    {fmt(entries.reduce((s, e) => s + parseFloat(e.wht_deducted || 0), 0))}
+                  </td>
+                  {!isReadOnly && <td />}
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      )}
+
+      {!isReadOnly && (
+        <button type="button" onClick={openAdd} className="flex items-center gap-1.5 text-sm text-brand-yellow hover:text-brand-yellow/80 transition-colors font-medium">
+          <Plus size={14} /> Add Business / Partnership
+        </button>
+      )}
+
+      {entries.length === 0 && isReadOnly && (
+        <p className="text-sm text-brand-gray">No business income entered.</p>
+      )}
+
+      {/* Modal */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-brand-black-light border border-brand-gray-border rounded-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white">{modal.mode === 'add' ? 'Add Business Income' : 'Edit Business Income'}</h3>
+              <button type="button" onClick={() => setModal(null)} className="text-brand-gray hover:text-white transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-brand-gray mb-1 block font-medium">Business / Partnership Name</label>
+                <input
+                  className="input-field"
+                  placeholder="e.g., ABC Consultancy"
+                  value={form.business_name}
+                  onChange={e => setForm(f => ({ ...f, business_name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-brand-gray mb-1 block font-medium">Net Business Income (Rs.)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray text-sm font-mono">Rs.</span>
+                  <input
+                    type="number"
+                    className="input-field pl-10 text-right font-mono"
+                    placeholder="0"
+                    value={form.amount}
+                    onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-brand-gray mb-1 block font-medium">WHT Deducted on Business Income (Rs.)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray text-sm font-mono">Rs.</span>
+                  <input
+                    type="number"
+                    className="input-field pl-10 text-right font-mono"
+                    placeholder="0"
+                    value={form.wht_deducted}
+                    onChange={e => setForm(f => ({ ...f, wht_deducted: e.target.value }))}
+                  />
+                </div>
+                <p className="text-xs text-brand-gray mt-1">Will be automatically added to your tax credits</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button type="button" onClick={() => setModal(null)} className="btn-secondary text-sm">Cancel</button>
+              <button type="button" onClick={handleSave} disabled={saving} className="btn-primary text-sm">
+                <Check size={14} /> {saving ? 'Saving…' : modal.mode === 'add' ? 'Add' : 'Update'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
