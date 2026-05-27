@@ -136,38 +136,42 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
 
   useEffect(() => {
     const d = queries
+    // nv: converts 0 / "0" / "0.00" to '' so fields appear empty rather than showing "0"
+    const nv = v => (v == null || v === '' || parseFloat(v) === 0) ? '' : v
     resetIncome({
-      local_amount:                   d.local.data?.amount || '',
+      local_amount:                   nv(d.local.data?.amount),
       employer_name:                  d.local.data?.employer_name || '',
-      foreign_employment_service_fee: d.foreign.data?.employment_service_fee || '',
-      foreign_business_income:        d.foreign.data?.foreign_business_income || '',
-      foreign_other:                  d.foreign.data?.other_foreign_income || '',
-      terminal_amount:                d.terminal.data?.amount || '',
+      foreign_employment_service_fee: nv(d.foreign.data?.employment_service_fee),
+      foreign_business_income:        nv(d.foreign.data?.foreign_business_income),
+      foreign_other:                  nv(d.foreign.data?.other_foreign_income),
+      terminal_amount:                nv(d.terminal.data?.amount),
       terminal_benefit_types:         d.terminal.data?.benefit_types || '',
-      rent_gross:                     d.rent.data?.gross_amount || '',
-      rent_wht:                       d.rent.data?.wht_deducted || '',
-      interest_amount:                d.interest.data?.amount || '',
-      interest_wht:                   d.interest.data?.wht_deducted || '',
-      dividend_amount:                d.dividend.data?.amount || '',
-      dividend_exempt_amount:         d.dividend.data?.exempt_amount || '',
-      other_amount:                   d.other.data?.amount || '',
+      rent_gross:                     nv(d.rent.data?.gross_amount),
+      rent_wht:                       nv(d.rent.data?.wht_deducted),
+      interest_amount:                nv(d.interest.data?.amount),
+      interest_wht:                   nv(d.interest.data?.wht_deducted),
+      dividend_amount:                nv(d.dividend.data?.amount),
+      dividend_exempt_amount:         nv(d.dividend.data?.exempt_amount),
+      other_amount:                   nv(d.other.data?.amount),
       other_description:              d.other.data?.description || '',
     })
   }, [Object.values(queries).map(q => q.data).join(',')])
 
   useEffect(() => {
+    const nv = v => (v == null || v === '' || parseFloat(v) === 0) ? '' : v
     resetQP({
-      donation_charitable:     queries.qp.data?.donation_charitable || '',
-      donation_government:     queries.qp.data?.donation_government || '',
-      solar_panels_expenditure: queries.qp.data?.solar_panels_expenditure || '',
+      donation_charitable:      nv(queries.qp.data?.donation_charitable),
+      donation_government:      nv(queries.qp.data?.donation_government),
+      solar_panels_expenditure: nv(queries.qp.data?.solar_panels_expenditure),
     })
   }, [queries.qp.data])
 
   useEffect(() => {
+    const nv = v => (v == null || v === '' || parseFloat(v) === 0) ? '' : v
     resetTC({
-      apit_on_salary:            queries.tc.data?.apit_on_salary || '',
-      wht_rent_interest_service: queries.tc.data?.wht_rent_interest_service || '',
-      partnership_tax_credit:    queries.tc.data?.partnership_tax_credit || '',
+      apit_on_salary:            nv(queries.tc.data?.apit_on_salary),
+      wht_rent_interest_service: nv(queries.tc.data?.wht_rent_interest_service),
+      partnership_tax_credit:    nv(queries.tc.data?.partnership_tax_credit),
     })
   }, [queries.tc.data])
 

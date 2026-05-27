@@ -6,7 +6,7 @@ import { forwardRef, useState, useEffect } from 'react'
  * Compatible with react-hook-form Controller and direct value/onChange patterns.
  */
 const NumberInput = forwardRef(function NumberInput(
-  { onChange, onBlur, value, placeholder = '0', className = '', ...props },
+  { onChange, onBlur, value, placeholder = '', className = '', ...props },
   ref
 ) {
   const fmt = (v) => {

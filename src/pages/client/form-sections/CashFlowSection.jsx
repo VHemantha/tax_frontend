@@ -96,6 +96,67 @@ function BankList({ label, entries, onChange, readOnly }) {
   )
 }
 
+/* ── Other items (dynamic description+amount rows) ── */
+function OtherItemsList({ label, entries, onChange, readOnly }) {
+  function addRow() {
+    onChange([...entries, { description: '', amount: '' }])
+  }
+  function removeRow(i) {
+    onChange(entries.filter((_, idx) => idx !== i))
+  }
+  function updateRow(i, key, val) {
+    onChange(entries.map((r, idx) => idx === i ? { ...r, [key]: val } : r))
+  }
+
+  return (
+    <div className="mb-1 mt-2">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-brand-yellow font-semibold uppercase tracking-wide">{label}</span>
+        {!readOnly && (
+          <button type="button" onClick={addRow} className="text-xs text-brand-yellow hover:opacity-80 flex items-center gap-1">
+            <Plus size={11} /> Add
+          </button>
+        )}
+      </div>
+      {entries.length === 0 && !readOnly && (
+        <p className="text-xs text-brand-gray italic py-1">No other {label.toLowerCase()} — click Add to include</p>
+      )}
+      {entries.map((row, i) => (
+        <div key={i} className="grid grid-cols-12 gap-2 mb-1.5 items-center py-1 border-b border-brand-gray-border/30">
+          <input
+            className="input-field col-span-7 text-sm py-1.5 px-2"
+            placeholder="Description"
+            value={row.description}
+            readOnly={readOnly}
+            onChange={e => updateRow(i, 'description', e.target.value)}
+          />
+          <NumberInput
+            className="input-field col-span-4 text-sm py-1.5 px-2 text-right"
+            value={row.amount}
+            readOnly={readOnly}
+            onChange={e => updateRow(i, 'amount', e.target.value)}
+          />
+          {!readOnly && (
+            <button type="button" onClick={() => removeRow(i)} className="col-span-1 text-brand-red hover:opacity-80 flex justify-center">
+              <Trash2 size={13} />
+            </button>
+          )}
+          {readOnly && <div className="col-span-1" />}
+        </div>
+      ))}
+      {entries.length > 0 && (
+        <div className="flex justify-between py-1 text-xs text-brand-gray">
+          <span>{entries.length} item{entries.length !== 1 ? 's' : ''}</span>
+          <span className="font-mono font-semibold text-white">
+            Rs. {entries.reduce((s, r) => s + parseFloat(r.amount || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 /* ── Subtotal row ── */
 function SubtotalRow({ label, value, highlight }) {
   return (
@@ -137,6 +198,7 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
     receipt_sale_land_building: '',
     receipt_sale_motor_vehicle: '',
     receipt_sale_other_assets: '',
+    receipt_other_items: [],
     payment_purchase_land_building: '',
     payment_purchase_motor_vehicle: '',
     payment_purchase_other_assets: '',
@@ -149,6 +211,7 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
     payment_apit: '',
     payment_investment_shares: '',
     payment_loans_given_others: '',
+    payment_other_items: [],
     closing_cash_in_hand: '',
     closing_favourable_banks: [],
     closing_overdraft_banks: [],
@@ -159,7 +222,10 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (saved && saved.id) setForm({ ...DEFAULTS, ...saved })
+    if (saved && saved.id) {
+      const nv = v => Array.isArray(v) ? v : ((v == null || v === '' || parseFloat(v) === 0) ? '' : v)
+      setForm({ ...DEFAULTS, ...Object.fromEntries(Object.entries(saved).map(([k, v]) => [k, nv(v)])) })
+    }
   }, [saved])
 
   function set(key, val) {
@@ -171,6 +237,9 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
   const openingBankOD   = form.opening_overdraft_banks.reduce((s, r) => s + D(r.amount), 0)
   const openingTotal    = D(form.opening_cash_in_hand) + openingBankFav - openingBankOD
 
+  const otherReceiptsTotal = (form.receipt_other_items || []).reduce((s, r) => s + D(r.amount), 0)
+  const otherPaymentsTotal = (form.payment_other_items  || []).reduce((s, r) => s + D(r.amount), 0)
+
   const totalReceipts =
     D(form.receipt_employment_income) + D(form.receipt_interest_fds) +
     D(form.receipt_interest_savings) + D(form.receipt_rent_income) +
@@ -178,7 +247,7 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
     D(form.receipt_dividend_income) + D(form.receipt_drawings_sole_partner) +
     D(form.receipt_bank_loan) + D(form.receipt_other_loans) +
     D(form.receipt_sale_land_building) + D(form.receipt_sale_motor_vehicle) +
-    D(form.receipt_sale_other_assets)
+    D(form.receipt_sale_other_assets) + otherReceiptsTotal
 
   const totalCashAvailable = openingTotal + totalReceipts
 
@@ -188,7 +257,8 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
     D(form.payment_lease_rentals) + D(form.payment_jewellery_gems) +
     D(form.payment_other_loans) + D(form.payment_wht) +
     D(form.payment_income_tax) + D(form.payment_apit) +
-    D(form.payment_investment_shares) + D(form.payment_loans_given_others)
+    D(form.payment_investment_shares) + D(form.payment_loans_given_others) +
+    otherPaymentsTotal
 
   const netCashAvailable = totalCashAvailable - totalPayments
 
@@ -266,6 +336,14 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
           <AmountRow key={key} label={label} fieldKey={key} value={form[key]} onChange={set} readOnly={ro} />
         ))}
 
+        {/* Other receipts — dynamic list */}
+        <OtherItemsList
+          label="Other Receipts"
+          entries={form.receipt_other_items || []}
+          onChange={v => set('receipt_other_items', v)}
+          readOnly={ro}
+        />
+
         <SubtotalRow label="Total Receipts" value={totalReceipts} />
         <SubtotalRow label="Total Cash Available" value={totalCashAvailable} highlight />
       </div>
@@ -290,6 +368,14 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
         ].map(([key, label]) => (
           <AmountRow key={key} label={label} fieldKey={key} value={form[key]} onChange={set} readOnly={ro} />
         ))}
+
+        {/* Other payments — dynamic list */}
+        <OtherItemsList
+          label="Other Payments"
+          entries={form.payment_other_items || []}
+          onChange={v => set('payment_other_items', v)}
+          readOnly={ro}
+        />
 
         <SubtotalRow label="Total Payments" value={totalPayments} />
         <SubtotalRow label="Net Cash Available — as at 31st March" value={netCashAvailable} highlight />

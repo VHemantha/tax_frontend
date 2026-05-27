@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../../contexts/AuthContext'
-import { Eye, EyeOff, Lock, Mail, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, Lock, Mail, AlertCircle, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
@@ -9,6 +9,7 @@ export default function Login() {
   const { login } = useAuth()
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [useUsername, setUseUsername] = useState(false)
 
   const { register, handleSubmit, formState: { errors } } = useForm()
 
@@ -17,8 +18,14 @@ export default function Login() {
     try {
       await login(email, password)
     } catch (err) {
-      const msg = err.response?.data?.detail || 'Invalid email or password.'
-      toast.error(msg)
+      const data = err.response?.data
+      if (data?.use_username) {
+        setUseUsername(true)
+        toast.error(data.detail)
+      } else {
+        const msg = data?.detail || 'Invalid credentials.'
+        toast.error(msg)
+      }
     } finally {
       setLoading(false)
     }
@@ -46,19 +53,23 @@ export default function Login() {
           <div className="px-8 py-8">
             <h2 className="text-lg font-semibold text-white mb-6">Sign in to your account</h2>
 
+            {useUsername && (
+              <div className="flex items-start gap-2 p-3 bg-brand-yellow/10 border border-brand-yellow/30 rounded-lg text-xs text-brand-yellow">
+                <Info size={13} className="mt-0.5 flex-shrink-0" />
+                <span>Multiple accounts share that email. Please enter your <strong>username</strong> below instead.</span>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-              {/* Email */}
+              {/* Email or Username */}
               <div>
-                <label className="input-label">Email Address</label>
+                <label className="input-label">{useUsername ? 'Username' : 'Email or Username'}</label>
                 <div className="relative">
                   <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-gray" />
                   <input
-                    {...register('email', {
-                      required: 'Email is required',
-                      pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email address' }
-                    })}
-                    type="email"
-                    placeholder="you@example.com"
+                    {...register('email', { required: 'Email or username is required' })}
+                    type="text"
+                    placeholder={useUsername ? 'your_username' : 'you@example.com or username'}
                     autoComplete="email"
                     className={clsx('input-field pl-10', errors.email && 'border-brand-red focus:border-brand-red focus:ring-brand-red')}
                   />
