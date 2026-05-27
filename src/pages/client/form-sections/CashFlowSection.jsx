@@ -223,8 +223,8 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
 
   useEffect(() => {
     if (saved && saved.id) {
-      const nv = v => Array.isArray(v) ? v : ((v == null || v === '' || parseFloat(v) === 0) ? '' : v)
-      setForm({ ...DEFAULTS, ...Object.fromEntries(Object.entries(saved).map(([k, v]) => [k, nv(v)])) })
+      const nv = (k, v) => Array.isArray(DEFAULTS[k]) ? (Array.isArray(v) ? v : []) : ((v == null || v === '' || parseFloat(v) === 0) ? '' : v)
+      setForm({ ...DEFAULTS, ...Object.fromEntries(Object.entries(saved).map(([k, v]) => [k, nv(k, v)])) })
     }
   }, [saved])
 
