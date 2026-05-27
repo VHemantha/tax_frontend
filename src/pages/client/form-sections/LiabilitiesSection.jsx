@@ -15,7 +15,7 @@ const FIELDS = [
   { key: 'amount_repaid_during_year',label: 'Amount Repaid During Y/A (Rs.)',   type: 'number' },
 ]
 
-const DEFAULTS = { description: '', security_on_liability: '', original_amount: 0, amount_as_at_date: 0, amount_repaid_during_year: 0 }
+const DEFAULTS = { description: '', security_on_liability: '', original_amount: '', amount_as_at_date: '', amount_repaid_during_year: '' }
 
 function fmt(v) {
   const n = parseFloat(v || 0)
@@ -42,7 +42,8 @@ export default function LiabilitiesSection({ submissionId, documents, onUpload, 
   }
 
   function openEdit(lib) {
-    setFormVals({ ...lib })
+    const nv = v => (v == null || v === '' || (!isNaN(parseFloat(v)) && parseFloat(v) === 0)) ? '' : v
+    setFormVals(Object.fromEntries(Object.entries(lib).map(([k, v]) => [k, typeof v === 'object' ? v : nv(v)])))
     setEditId(lib.id)
     setModalOpen(true)
   }

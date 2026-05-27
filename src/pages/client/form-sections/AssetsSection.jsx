@@ -26,7 +26,7 @@ const CATEGORIES = [
     getDescription: r => r.situation_of_property || '—',
     getDetail: r => r.date_of_acquisition || '—',
     getAmount: r => r.market_value,
-    defaults: { situation_of_property: '', cost: 0, market_value: 0 },
+    defaults: { situation_of_property: '', cost: '', market_value: '' },
     fields: [
       { key: 'situation_of_property', label: 'Situation of Property', type: 'text' },
       { key: 'date_of_acquisition', label: 'Date of Acquisition', type: 'date' },
@@ -40,7 +40,7 @@ const CATEGORIES = [
     getDescription: r => r.description || '—',
     getDetail: r => r.registration_no || '—',
     getAmount: r => r.cost_market_value,
-    defaults: { description: '', registration_no: '', cost_market_value: 0 },
+    defaults: { description: '', registration_no: '', cost_market_value: '' },
     fields: [
       { key: 'description', label: 'Description', type: 'text' },
       { key: 'registration_no', label: 'Registration No.', type: 'text' },
@@ -54,7 +54,7 @@ const CATEGORIES = [
     getDescription: r => r.bank_name || '—',
     getDetail: r => r.account_no || '—',
     getAmount: r => r.balance,
-    defaults: { bank_name: '', account_no: '', amount_invested: 0, interest: 0, balance: 0 },
+    defaults: { bank_name: '', account_no: '', amount_invested: '', interest: '', balance: '' },
     fields: [
       { key: 'bank_name', label: 'Bank / Institution', type: 'text' },
       { key: 'account_no', label: 'Account No.', type: 'text' },
@@ -69,7 +69,7 @@ const CATEGORIES = [
     getDescription: r => r.description || '—',
     getDetail: r => r.no_of_shares ? `${r.no_of_shares} shares` : '—',
     getAmount: r => r.cost_market_value,
-    defaults: { description: '', no_of_shares: 0, cost_market_value: 0, net_dividend_income: 0 },
+    defaults: { description: '', no_of_shares: '', cost_market_value: '', net_dividend_income: '' },
     fields: [
       { key: 'description', label: 'Description', type: 'text' },
       { key: 'no_of_shares', label: 'No. of Shares', type: 'number' },
@@ -84,7 +84,7 @@ const CATEGORIES = [
     getDescription: () => 'Cash in Hand',
     getDetail: () => '—',
     getAmount: r => r?.amount,
-    defaults: { amount: 0 },
+    defaults: { amount: '' },
     fields: [
       { key: 'amount', label: 'Amount (Rs.)', type: 'number' },
     ],
@@ -95,7 +95,7 @@ const CATEGORIES = [
     getDescription: r => r.borrower_name || '—',
     getDetail: () => '—',
     getAmount: r => r.amount,
-    defaults: { borrower_name: '', amount: 0 },
+    defaults: { borrower_name: '', amount: '' },
     fields: [
       { key: 'borrower_name', label: 'Borrower Name', type: 'text' },
       { key: 'amount', label: 'Amount (Rs.)', type: 'number' },
@@ -107,7 +107,7 @@ const CATEGORIES = [
     getDescription: r => r?.description || 'Gold / Silver / Gems / Jewellery',
     getDetail: () => '—',
     getAmount: r => r?.value,
-    defaults: { description: '', value: 0 },
+    defaults: { description: '', value: '' },
     fields: [
       { key: 'description', label: 'Description of Items', type: 'text' },
       { key: 'value', label: 'Estimated Value (Rs.)', type: 'number' },
@@ -119,7 +119,7 @@ const CATEGORIES = [
     getDescription: r => r.name_of_business || '—',
     getDetail: () => '—',
     getAmount: r => parseFloat(r.capital_account_balance || 0),
-    defaults: { name_of_business: '', current_account_balance: 0, capital_account_balance: 0 },
+    defaults: { name_of_business: '', current_account_balance: '', capital_account_balance: '' },
     fields: [
       { key: 'name_of_business', label: 'Name of Business', type: 'text' },
       { key: 'current_account_balance', label: 'Current Account Balance (Rs.)', type: 'number' },
@@ -132,7 +132,7 @@ const CATEGORIES = [
     getDescription: r => r.description || '—',
     getDetail: r => r.acquisition_type || '—',
     getAmount: r => r.cost_value,
-    defaults: { description: '', acquisition_type: 'purchase', cost_value: 0 },
+    defaults: { description: '', acquisition_type: 'purchase', cost_value: '' },
     fields: [
       { key: 'description', label: 'Description', type: 'text' },
       {
@@ -153,7 +153,7 @@ const CATEGORIES = [
     getDescription: r => r.description || '—',
     getDetail: r => r.date_of_disposal || '—',
     getAmount: r => r.sales_proceed,
-    defaults: { description: '', sales_proceed: 0, cost: 0 },
+    defaults: { description: '', sales_proceed: '', cost: '' },
     fields: [
       { key: 'description', label: 'Description', type: 'text' },
       { key: 'date_of_disposal', label: 'Date of Disposal', type: 'date' },
@@ -250,7 +250,8 @@ export default function AssetsSection({ submissionId, isReadOnly, onNext, onPrev
 
   function openEditModal(row) {
     setModalCat(row.category)
-    setFormVals({ ...row.raw })
+    const nv = v => (v == null || v === '' || (!isNaN(parseFloat(v)) && parseFloat(v) === 0)) ? '' : v
+    setFormVals(Object.fromEntries(Object.entries(row.raw).map(([k, v]) => [k, typeof v === 'object' ? v : nv(v)])))
     setEditTarget({ catKey: row.category, id: row.id, isSingle: row.isSingle })
     setModalOpen(true)
   }
