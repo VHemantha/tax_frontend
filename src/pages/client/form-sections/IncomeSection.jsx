@@ -39,7 +39,7 @@ function AmountInput({ name, control, disabled, className = '' }) {
             onChange={e => onChange(e.target.value)}
             onBlur={onBlur}
             disabled={disabled}
-            placeholder="0"
+            placeholder=""
             className={`input-field pl-10 text-right font-mono ${className}`}
           />
         )}
@@ -689,7 +689,7 @@ function SoleProprietorshipEntries({ submissionId, isReadOnly, onWHTChange }) {
                   <input
                     type="number"
                     className="input-field pl-10 text-right font-mono"
-                    placeholder="0"
+                    placeholder=""
                     value={form.amount}
                     onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
                   />
@@ -702,7 +702,7 @@ function SoleProprietorshipEntries({ submissionId, isReadOnly, onWHTChange }) {
                   <input
                     type="number"
                     className="input-field pl-10 text-right font-mono"
-                    placeholder="0"
+                    placeholder=""
                     value={form.wht_deducted}
                     onChange={e => setForm(f => ({ ...f, wht_deducted: e.target.value }))}
                   />
@@ -765,7 +765,7 @@ function SelfAssessmentInstallments({ submissionId, isReadOnly }) {
                 <NumberInput
                   value={inst?.amount ?? ''}
                   onBlur={e => !isReadOnly && saveInstallment(num, e.target.value || 0)}
-                  placeholder="0"
+                  placeholder=""
                   disabled={isReadOnly}
                   className="input-field pl-9 text-right font-mono text-sm"
                 />
