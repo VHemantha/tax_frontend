@@ -114,6 +114,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
     rent:     useQuery({ queryKey: ['income-rent',     submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/income/rent/`).then(r => r.data) }),
     interest: useQuery({ queryKey: ['income-interest', submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/income/interest/`).then(r => r.data) }),
     dividend: useQuery({ queryKey: ['income-dividend', submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/income/dividend/`).then(r => r.data) }),
+    tb:       useQuery({ queryKey: ['income-tb',       submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/income/tb-securities/`).then(r => r.data) }),
     sole:     useQuery({ queryKey: ['income-sole',     submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/income/sole-proprietorship/`).then(r => r.data) }),
     other:    useQuery({ queryKey: ['income-other',    submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/income/other/`).then(r => r.data) }),
     qp:       useQuery({ queryKey: ['qualifying-payments', submissionId], queryFn: () => api.get(`/tax/submissions/${submissionId}/qualifying-payments/`).then(r => r.data) }),
@@ -129,10 +130,11 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
   const watchedRentGross   = watchIncome('rent_gross')
   const watchedRentWHT     = watchIncome('rent_wht')
   const watchedInterestWHT = watchIncome('interest_wht')
+  const watchedTbWHT       = watchIncome('tb_wht')
   const liveRentRelief     = Math.round(parseFloat(watchedRentGross || 0) * 0.25 * 100) / 100
   const soleEntries        = Array.isArray(queries.sole.data) ? queries.sole.data : []
   const soleWHTTotal       = soleEntries.reduce((s, e) => s + parseFloat(e.wht_deducted || 0), 0)
-  const liveWHTTotal       = Math.round((parseFloat(watchedRentWHT || 0) + parseFloat(watchedInterestWHT || 0) + soleWHTTotal) * 100) / 100
+  const liveWHTTotal       = Math.round((parseFloat(watchedRentWHT || 0) + parseFloat(watchedInterestWHT || 0) + soleWHTTotal + parseFloat(watchedTbWHT || 0)) * 100) / 100
 
   useEffect(() => {
     const d = queries
@@ -152,6 +154,8 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
       interest_wht:                   nv(d.interest.data?.wht_deducted),
       dividend_amount:                nv(d.dividend.data?.amount),
       dividend_exempt_amount:         nv(d.dividend.data?.exempt_amount),
+      tb_gross:                       nv(d.tb.data?.gross_amount),
+      tb_wht:                         nv(d.tb.data?.wht_deducted),
       other_amount:                   nv(d.other.data?.amount),
       other_description:              d.other.data?.description || '',
     })
@@ -177,9 +181,9 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
 
   /* Auto-populate WHT credit from income section WHT fields */
   useEffect(() => {
-    const total = parseFloat(watchedRentWHT || 0) + parseFloat(watchedInterestWHT || 0) + soleWHTTotal
+    const total = parseFloat(watchedRentWHT || 0) + parseFloat(watchedInterestWHT || 0) + soleWHTTotal + parseFloat(watchedTbWHT || 0)
     setValueTC('wht_rent_interest_service', total > 0 ? String(Math.round(total)) : '')
-  }, [watchedRentWHT, watchedInterestWHT, soleWHTTotal])
+  }, [watchedRentWHT, watchedInterestWHT, soleWHTTotal, watchedTbWHT])
 
   async function saveIncome(data) {
     setSaving(true)
@@ -191,6 +195,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
         api.post(`/tax/submissions/${submissionId}/income/rent/`,               { gross_amount: data.rent_gross || 0, wht_deducted: data.rent_wht || 0 }),
         api.post(`/tax/submissions/${submissionId}/income/interest/`,           { amount: data.interest_amount || 0, wht_deducted: data.interest_wht || 0 }),
         api.post(`/tax/submissions/${submissionId}/income/dividend/`,           { amount: data.dividend_amount || 0, exempt_amount: data.dividend_exempt_amount || 0 }),
+        api.post(`/tax/submissions/${submissionId}/income/tb-securities/`,     { gross_amount: data.tb_gross || 0, wht_deducted: data.tb_wht || 0 }),
         api.post(`/tax/submissions/${submissionId}/income/other/`,              { amount: data.other_amount || 0, description: data.other_description }),
       ])
       toast.success('Income data saved')
@@ -353,6 +358,21 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
               </FieldRow>
               <div className="pt-2">
                 <FileUpload label="Dividend Certificates (Dividend Warrant)" documentType="dividend_certificate" section="income" {...fp} />
+              </div>
+            </SubSection>
+
+            <Divider />
+
+            {/* TB & Securities Income */}
+            <SubSection icon={Receipt} title="T-Bills & Securities Income">
+              <FieldRow label="Gross Amount" hint="Gross income from treasury bills, bonds and other securities">
+                <AmountInput name="tb_gross" control={controlIncome} disabled={isReadOnly} />
+              </FieldRow>
+              <FieldRow label="WHT Deducted" hint="Withholding tax deducted at source">
+                <AmountInput name="tb_wht" control={controlIncome} disabled={isReadOnly} />
+              </FieldRow>
+              <div className="pt-2">
+                <FileUpload label="T-Bill / Securities Income Certificates" documentType="tb_securities_certificate" section="income" {...fp} />
               </div>
             </SubSection>
 

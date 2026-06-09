@@ -181,6 +181,12 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
     queryFn: () => api.get(`/tax/submissions/${submissionId}/cash-flow/`).then(r => r.data),
   })
 
+  const { data: suggested } = useQuery({
+    queryKey: ['cashflow-suggested', submissionId],
+    queryFn: () => api.get(`/tax/submissions/${submissionId}/cashflow/suggested/`).then(r => r.data),
+    staleTime: 0,
+  })
+
   const DEFAULTS = {
     opening_cash_in_hand: '',
     opening_favourable_banks: [],
@@ -222,11 +228,24 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (saved && saved.id) {
-      const nv = (k, v) => Array.isArray(DEFAULTS[k]) ? (Array.isArray(v) ? v : []) : ((v == null || v === '' || parseFloat(v) === 0) ? '' : v)
-      setForm({ ...DEFAULTS, ...Object.fromEntries(Object.entries(saved).map(([k, v]) => [k, nv(k, v)])) })
+    // Wait until suggested data has loaded (it drives auto-fill)
+    if (suggested === undefined) return
+    const nv = (k, sv, sg) => {
+      if (Array.isArray(DEFAULTS[k])) {
+        const savedArr = Array.isArray(sv) ? sv : []
+        const sugArr   = Array.isArray(sg) ? sg : []
+        return savedArr.length > 0 ? savedArr : sugArr
+      }
+      const savedOk = sv != null && sv !== '' && !isNaN(parseFloat(sv)) && parseFloat(sv) !== 0
+      const sugOk   = sg != null && sg !== '' && !isNaN(parseFloat(sg)) && parseFloat(sg) !== 0
+      if (savedOk) return String(sv)
+      if (sugOk)   return String(sg)
+      return ''
     }
-  }, [saved])
+    const savedData = (saved && saved.id) ? saved : {}
+    const sugData   = suggested || {}
+    setForm({ ...DEFAULTS, ...Object.fromEntries(Object.keys(DEFAULTS).map(k => [k, nv(k, savedData[k], sugData[k])])) })
+  }, [saved, suggested])
 
   function set(key, val) {
     setForm(f => ({ ...f, [key]: val }))

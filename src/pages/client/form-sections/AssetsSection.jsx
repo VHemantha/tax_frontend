@@ -162,9 +162,18 @@ const CATEGORIES = [
   {
     key: 'disposals', label: 'Disposal of Assets including Shares During the Year',
     endpoint: 'disposals', queryKey: 'disposals',
-    defaults: { description: '', sales_proceed: '', cost: '' },
+    defaults: { description: '', category: 'other', sales_proceed: '', cost: '' },
     fields: [
       { key: 'description', label: 'Description', type: 'text' },
+      {
+        key: 'category', label: 'Category', type: 'select',
+        options: [
+          { value: 'land_building', label: 'Land / Building' },
+          { value: 'motor_vehicle', label: 'Motor Vehicle' },
+          { value: 'shares', label: 'Shares / Securities' },
+          { value: 'other', label: 'Other' },
+        ],
+      },
       { key: 'date_of_disposal', label: 'Date of Disposal', type: 'date' },
       { key: 'sales_proceed', label: 'Sales Proceed (Rs.)', type: 'number' },
       { key: 'date_acquired', label: 'Date Acquired', type: 'date' },
@@ -172,6 +181,7 @@ const CATEGORIES = [
     ],
     columns: [
       { key: 'description', label: 'Description' },
+      { key: 'category', label: 'Category', render: v => ({ land_building: 'Land/Building', motor_vehicle: 'Motor Vehicle', shares: 'Shares/Securities', other: 'Other' }[v] || v) },
       { key: 'date_of_disposal', label: 'Date of Disposal' },
       { key: 'sales_proceed', label: 'Sales Proceed (Rs.)', numeric: true },
       { key: 'date_acquired', label: 'Date Acquired' },
@@ -218,7 +228,7 @@ function CategoryTable({ cat, data, isReadOnly, onAdd, onEdit, onDelete }) {
                 <tr key={row.id} className="table-row">
                   {cat.columns.map(col => (
                     <td key={col.key} className={`table-cell ${col.numeric ? 'text-right font-mono text-white' : 'text-brand-gray'}`}>
-                      {col.numeric ? numOrDash(row[col.key]) : (row[col.key] || '—')}
+                      {col.numeric ? numOrDash(row[col.key]) : col.render ? col.render(row[col.key]) : (row[col.key] || '—')}
                     </td>
                   ))}
                   {!isReadOnly && (
