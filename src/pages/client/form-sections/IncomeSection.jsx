@@ -207,7 +207,11 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
   async function saveQP(data) {
     setSaving(true)
     try {
-      await api.post(`/tax/submissions/${submissionId}/qualifying-payments/`, data)
+      await api.post(`/tax/submissions/${submissionId}/qualifying-payments/`, {
+        donation_charitable:      data.donation_charitable || 0,
+        donation_government:      data.donation_government || 0,
+        solar_panels_expenditure: data.solar_panels_expenditure || 0,
+      })
       toast.success('Qualifying payments saved')
     } catch { toast.error('Failed to save') }
     setSaving(false)
@@ -216,7 +220,11 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
   async function saveTC(data) {
     setSaving(true)
     try {
-      await api.post(`/tax/submissions/${submissionId}/tax-credits/`, data)
+      await api.post(`/tax/submissions/${submissionId}/tax-credits/`, {
+        apit_on_salary:            data.apit_on_salary || 0,
+        wht_rent_interest_service: data.wht_rent_interest_service || 0,
+        partnership_tax_credit:    data.partnership_tax_credit || 0,
+      })
       toast.success('Tax credits saved')
     } catch { toast.error('Failed to save') }
     setSaving(false)
@@ -505,7 +513,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
 
             {/* Self Assessment */}
             <SubSection icon={Receipt} title="Self Assessment Tax Payments">
-              <SelfAssessmentInstallments submissionId={submissionId} isReadOnly={isReadOnly} />
+              <SelfAssessmentInstallments {...fp} isReadOnly={isReadOnly} />
             </SubSection>
 
             <Divider />
@@ -746,8 +754,7 @@ function SoleProprietorshipEntries({ submissionId, isReadOnly, onWHTChange }) {
 
 
 /* ─── Self Assessment Installments sub-component ─── */
-function SelfAssessmentInstallments({ submissionId, isReadOnly }) {
-  const qc = useQueryClient()
+function SelfAssessmentInstallments({ submissionId, documents, onUpload, onDelete, isReadOnly }) {
   const { data: installments = [], refetch } = useQuery({
     queryKey: ['self-assessment', submissionId],
     queryFn:  () => api.get(`/tax/submissions/${submissionId}/self-assessment/`).then(r => r.data),
@@ -783,7 +790,7 @@ function SelfAssessmentInstallments({ submissionId, isReadOnly }) {
               <div className="relative">
                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-gray text-xs font-mono select-none">Rs.</span>
                 <NumberInput
-                  value={inst?.amount ?? ''}
+                  value={inst?.amount && parseFloat(inst.amount) !== 0 ? inst.amount : ''}
                   onBlur={e => !isReadOnly && saveInstallment(num, e.target.value || 0)}
                   placeholder=""
                   disabled={isReadOnly}
@@ -799,11 +806,9 @@ function SelfAssessmentInstallments({ submissionId, isReadOnly }) {
         documentType="self_assessment_receipt"
         section="tax_credits"
         submissionId={submissionId}
-        documents={[]}
-        onUpload={async (_, fd) => {
-          await api.post(`/documents/submission/${submissionId}/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-          qc.invalidateQueries(['documents', submissionId])
-        }}
+        documents={documents}
+        onUpload={onUpload}
+        onDelete={onDelete}
       />
     </div>
   )
