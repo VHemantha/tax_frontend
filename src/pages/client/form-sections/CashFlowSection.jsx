@@ -285,12 +285,14 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
   const closingBankOD  = form.closing_overdraft_banks.reduce((s, r) => s + D(r.amount), 0)
   const closingTotal   = D(form.closing_cash_in_hand) + closingBankFav - closingBankOD
 
-  const livingPerMonth = D(form.living_expenses_year) / 12
+  // Living expenses = Net Cash Flow − Cash in Hand − Bank Balance + Bank Overdraft
+  const livingExpensesYear = netCashAvailable - closingTotal
+  const livingPerMonth = livingExpensesYear / 12
 
   async function handleSave() {
     setSaving(true)
     try {
-      await api.post(`/tax/submissions/${submissionId}/cash-flow/`, form)
+      await api.post(`/tax/submissions/${submissionId}/cash-flow/`, { ...form, living_expenses_year: String(Math.round(livingExpensesYear)) })
       qc.invalidateQueries(['cash-flow', submissionId])
       toast.success('Cash flow statement saved')
     } catch {
@@ -435,9 +437,12 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
       <div className="card">
         <SectionHead icon={TrendingDown} title="Living Expenses" color="text-brand-gray" />
 
-        <AmountRow label="Living Expenses for the Year (Rs.)" fieldKey="living_expenses_year" value={form.living_expenses_year} onChange={set} readOnly={ro} />
+        <div className="flex items-center justify-between py-2 border-b border-brand-gray-border/40 gap-3">
+          <span className="text-sm text-brand-gray flex-1">Living Expenses for the Year (Rs.)</span>
+          <span className="text-sm font-mono text-white w-36 text-right">{fmt(livingExpensesYear)}</span>
+        </div>
 
-        {D(form.living_expenses_year) > 0 && (
+        {livingExpensesYear > 0 && (
           <div className="flex items-center justify-between py-2 border-b border-brand-gray-border/40">
             <span className="text-sm text-brand-gray">Living Expenses per Month (÷ 12)</span>
             <span className="text-sm font-mono text-brand-yellow font-semibold">Rs. {fmt(livingPerMonth)}</span>
