@@ -289,10 +289,20 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
   const livingExpensesYear = netCashAvailable - closingTotal
   const livingPerMonth = livingExpensesYear / 12
 
+  function buildPayload() {
+    const payload = { ...form, living_expenses_year: String(Math.round(livingExpensesYear)) }
+    Object.keys(payload).forEach(k => {
+      if (!Array.isArray(payload[k]) && (payload[k] === '' || payload[k] == null)) {
+        payload[k] = 0
+      }
+    })
+    return payload
+  }
+
   async function handleSave() {
     setSaving(true)
     try {
-      await api.post(`/tax/submissions/${submissionId}/cash-flow/`, { ...form, living_expenses_year: String(Math.round(livingExpensesYear)) })
+      await api.post(`/tax/submissions/${submissionId}/cash-flow/`, buildPayload())
       qc.invalidateQueries(['cash-flow', submissionId])
       toast.success('Cash flow statement saved')
     } catch {
