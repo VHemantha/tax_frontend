@@ -7,22 +7,30 @@ import NumberInput from '../../../components/common/NumberInput'
 import toast from 'react-hot-toast'
 
 const FIELDS = [
-  { key: 'description',              label: 'Description of Liability',         type: 'text' },
-  { key: 'security_on_liability',    label: 'Security',                         type: 'text' },
-  { key: 'date_of_commencement',     label: 'Date of Commencement',             type: 'date' },
-  { key: 'original_amount',          label: 'Original Amount (Rs.)',             type: 'number' },
-  { key: 'amount_as_at_date',        label: 'Balance as at 31.03.2026 (Rs.)',   type: 'number' },
-  { key: 'amount_repaid_during_year',label: 'Amount Repaid During Y/A (Rs.)',   type: 'number' },
+  { key: 'description',               label: 'Description of Liability',              type: 'text' },
+  { key: 'security_on_liability',     label: 'Security on Liability',                 type: 'text' },
+  { key: 'date_of_commencement',      label: 'Date of Commencement of the Liability', type: 'date' },
+  { key: 'original_amount',           label: 'Original Amount of Liability (Rs.)',    type: 'number' },
+  { key: 'amount_as_at_date',         label: 'Amount of Liability as at 31.03.2026 (Rs.)', type: 'number' },
+  { key: 'amount_repaid_during_year', label: 'Amount Repaid During the Y/A (Rs.)',   type: 'number' },
 ]
 
-const DEFAULTS = { description: '', security_on_liability: '', original_amount: '', amount_as_at_date: '', amount_repaid_during_year: '' }
+const DEFAULTS = { description: '', security_on_liability: '', date_of_commencement: '', original_amount: '', amount_as_at_date: '', amount_repaid_during_year: '' }
 
 function fmt(v) {
   const n = parseFloat(v || 0)
-  return isNaN(n) ? 'Rs. 0.00' : `Rs. ${n.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return isNaN(n) ? '—' : n.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-export default function LiabilitiesSection({ submissionId, documents, onUpload, onDeleteDoc, isReadOnly, onNext, onPrev }) {
+function loanObtainedDuringYear(lib, yearStart, yearEnd) {
+  const d = lib.date_of_commencement
+  if (!d || !yearStart || !yearEnd) return 0
+  return (d >= yearStart && d <= yearEnd) ? parseFloat(lib.original_amount || 0) : 0
+}
+
+export default function LiabilitiesSection({ submissionId, submission, documents, onUpload, onDeleteDoc, isReadOnly, onNext, onPrev }) {
+  const yearStart = submission?.assessment_year_start || ''
+  const yearEnd   = submission?.assessment_year_end   || ''
   const qc = useQueryClient()
 
   const { data: liabilities = [] } = useQuery({
@@ -97,24 +105,25 @@ export default function LiabilitiesSection({ submissionId, documents, onUpload, 
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto rounded-lg border border-brand-gray-border mb-6">
+        <div className="overflow-x-auto rounded-lg border border-brand-gray-border mb-4">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-brand-black">
                 <th className="table-header text-left w-8">#</th>
-                <th className="table-header text-left">Description</th>
-                <th className="table-header text-left">Security</th>
-                <th className="table-header text-left">Date Commenced</th>
-                <th className="table-header text-right">Original Amount</th>
-                <th className="table-header text-right">Balance 31.03.2026</th>
-                <th className="table-header text-right">Amount Repaid Y/A</th>
+                <th className="table-header text-left">Description of Liability</th>
+                <th className="table-header text-left">Security on Liability</th>
+                <th className="table-header text-left">Date of Commencement</th>
+                <th className="table-header text-right">Original Amount of Liability</th>
+                <th className="table-header text-right">Loan Obtained During the Year</th>
+                <th className="table-header text-right">Amount of Liability as at 31.03.2026</th>
+                <th className="table-header text-right">Amount Repaid During the Y/A</th>
                 {!isReadOnly && <th className="table-header w-20 text-center">Actions</th>}
               </tr>
             </thead>
             <tbody>
               {liabilities.length === 0 ? (
                 <tr>
-                  <td colSpan={isReadOnly ? 7 : 8} className="table-cell text-center text-brand-gray py-10">
+                  <td colSpan={isReadOnly ? 8 : 9} className="table-cell text-center text-brand-gray py-10">
                     No liabilities entered — click &quot;Add Liability&quot; to begin
                   </td>
                 </tr>
@@ -126,22 +135,39 @@ export default function LiabilitiesSection({ submissionId, documents, onUpload, 
                     <td className="table-cell text-brand-gray">{lib.security_on_liability || '—'}</td>
                     <td className="table-cell text-brand-gray">{lib.date_of_commencement || '—'}</td>
                     <td className="table-cell text-right font-mono text-white">{fmt(lib.original_amount)}</td>
+                    <td className="table-cell text-right font-mono text-white">
+                      {(() => { const v = loanObtainedDuringYear(lib, yearStart, yearEnd); return v > 0 ? fmt(v) : '—' })()}
+                    </td>
                     <td className="table-cell text-right font-mono text-white">{fmt(lib.amount_as_at_date)}</td>
                     <td className="table-cell text-right font-mono text-white">{fmt(lib.amount_repaid_during_year)}</td>
                     {!isReadOnly && (
                       <td className="table-cell text-center">
                         <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => openEdit(lib)} className="text-brand-yellow hover:opacity-80 transition-opacity" title="Edit">
-                            <Pencil size={13} />
-                          </button>
-                          <button onClick={() => handleDelete(lib.id)} className="text-brand-red hover:opacity-80 transition-opacity" title="Delete">
-                            <Trash2 size={13} />
-                          </button>
+                          <button onClick={() => openEdit(lib)} className="text-brand-yellow hover:opacity-80 transition-opacity" title="Edit"><Pencil size={13} /></button>
+                          <button onClick={() => handleDelete(lib.id)} className="text-brand-red hover:opacity-80 transition-opacity" title="Delete"><Trash2 size={13} /></button>
                         </div>
                       </td>
                     )}
                   </tr>
                 ))
+              )}
+              {liabilities.length > 0 && (
+                <tr className="border-t border-brand-gray-border bg-brand-black/40">
+                  <td className="table-cell font-semibold text-white" colSpan={4}>Total</td>
+                  <td className="table-cell text-right font-mono font-semibold text-brand-yellow">
+                    {fmt(liabilities.reduce((s, l) => s + parseFloat(l.original_amount || 0), 0))}
+                  </td>
+                  <td className="table-cell text-right font-mono font-semibold text-brand-yellow">
+                    {fmt(liabilities.reduce((s, l) => s + loanObtainedDuringYear(l, yearStart, yearEnd), 0))}
+                  </td>
+                  <td className="table-cell text-right font-mono font-semibold text-brand-yellow">
+                    {fmt(liabilities.reduce((s, l) => s + parseFloat(l.amount_as_at_date || 0), 0))}
+                  </td>
+                  <td className="table-cell text-right font-mono font-semibold text-brand-yellow">
+                    {fmt(liabilities.reduce((s, l) => s + parseFloat(l.amount_repaid_during_year || 0), 0))}
+                  </td>
+                  {!isReadOnly && <td className="table-cell" />}
+                </tr>
               )}
             </tbody>
           </table>

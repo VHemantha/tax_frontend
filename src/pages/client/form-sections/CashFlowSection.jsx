@@ -201,6 +201,7 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
     receipt_drawings_sole_partner: '',
     receipt_bank_loan: '',
     receipt_other_loans: '',
+    receipt_debtor_received: '',
     receipt_sale_land_building: '',
     receipt_sale_motor_vehicle: '',
     receipt_sale_other_assets: '',
@@ -265,6 +266,7 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
     D(form.receipt_tb_securities) + D(form.receipt_sale_shares) +
     D(form.receipt_dividend_income) + D(form.receipt_drawings_sole_partner) +
     D(form.receipt_bank_loan) + D(form.receipt_other_loans) +
+    D(form.receipt_debtor_received) +
     D(form.receipt_sale_land_building) + D(form.receipt_sale_motor_vehicle) +
     D(form.receipt_sale_other_assets) + otherReceiptsTotal
 
@@ -360,6 +362,7 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
           ['receipt_drawings_sole_partner', 'Drawings from Sole / Partnership Businesses'],
           ['receipt_bank_loan',             'Bank Loan Received'],
           ['receipt_other_loans',           'Other Loans Received'],
+          ['receipt_debtor_received',       'Debtor Received'],
           ['receipt_sale_land_building',    'Sale of Land or Building'],
           ['receipt_sale_motor_vehicle',    'Sale of Motor Vehicle'],
           ['receipt_sale_other_assets',     'Sale of Other Assets'],
