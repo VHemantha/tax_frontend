@@ -56,14 +56,22 @@ export default function LiabilitiesSection({ submissionId, submission, documents
     setModalOpen(true)
   }
 
+  function cleanPayload(vals) {
+    const payload = { ...vals }
+    if (payload.date_of_commencement === '' || payload.date_of_commencement == null) {
+      payload.date_of_commencement = null
+    }
+    return payload
+  }
+
   async function handleSave() {
     setSaving(true)
     try {
       if (editId) {
-        await api.patch(`/tax/liabilities/${editId}/`, formVals)
+        await api.patch(`/tax/liabilities/${editId}/`, cleanPayload(formVals))
         toast.success('Updated')
       } else {
-        await api.post(`/tax/submissions/${submissionId}/liabilities/`, formVals)
+        await api.post(`/tax/submissions/${submissionId}/liabilities/`, cleanPayload(formVals))
         toast.success('Added')
       }
       qc.invalidateQueries(['liabilities', submissionId])

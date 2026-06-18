@@ -23,7 +23,7 @@ const CATEGORIES = [
   {
     key: 'immovable', label: '1.  Immovable Properties as at 31st March 2026',
     endpoint: 'immovable', queryKey: 'immovable',
-    defaults: { situation_of_property: '', cost: '', market_value: '' },
+    defaults: { situation_of_property: '', date_of_acquisition: '', cost: '', market_value: '' },
     fields: [
       { key: 'situation_of_property', label: 'Situation of Property', type: 'text' },
       { key: 'date_of_acquisition', label: 'Date of Acquisition', type: 'date' },
@@ -42,7 +42,7 @@ const CATEGORIES = [
   {
     key: 'vehicles', label: '2.  Motor Vehicles as at 31st March 2026',
     endpoint: 'vehicles', queryKey: 'vehicles',
-    defaults: { description: '', registration_no: '', cost_market_value: '' },
+    defaults: { description: '', registration_no: '', date_of_acquisition: '', cost_market_value: '' },
     fields: [
       { key: 'description',       label: 'Description',              type: 'text' },
       { key: 'registration_no',   label: 'Registration No.',         type: 'text' },
@@ -81,7 +81,7 @@ const CATEGORIES = [
   {
     key: 'shares', label: '4.  Shares / Stocks / Securities as at 31.03.2026',
     endpoint: 'shares', queryKey: 'shares',
-    defaults: { description: '', no_of_shares: '', cost_market_value: '', net_dividend_income: '' },
+    defaults: { description: '', no_of_shares: '', date_of_acquisition: '', cost_market_value: '', net_dividend_income: '' },
     fields: [
       { key: 'description',        label: 'Description',                    type: 'text' },
       { key: 'no_of_shares',       label: 'No. of Shares',                  type: 'number' },
@@ -132,7 +132,7 @@ const CATEGORIES = [
   {
     key: 'other', label: '9.  Any Other Assets Acquired or Gifts Received During the Year',
     endpoint: 'other', queryKey: 'otherAssets',
-    defaults: { description: '', acquisition_type: 'purchase', cost_value: '' },
+    defaults: { description: '', acquisition_type: 'purchase', date_of_acquisition: '', cost_value: '' },
     fields: [
       { key: 'description', label: 'Description', type: 'text' },
       {
@@ -158,7 +158,7 @@ const CATEGORIES = [
   {
     key: 'disposals', label: '10.  Disposal of Assets including Shares During the Year',
     endpoint: 'disposals', queryKey: 'disposals',
-    defaults: { description: '', category: 'other', sales_proceed: '', cost: '' },
+    defaults: { description: '', category: 'other', date_of_disposal: '', sales_proceed: '', date_acquired: '', cost: '' },
     fields: [
       { key: 'description', label: 'Description', type: 'text' },
       {
@@ -411,6 +411,17 @@ export default function AssetsSection({ submissionId, submission, isReadOnly, on
     setModalOpen(true)
   }
 
+  // Convert empty-string date values to null so DRF DateField doesn't reject them
+  function cleanPayload(cat, vals) {
+    const payload = { ...vals }
+    ;(cat?.fields || []).forEach(f => {
+      if (f.type === 'date' && (payload[f.key] === '' || payload[f.key] == null)) {
+        payload[f.key] = null
+      }
+    })
+    return payload
+  }
+
   async function handleSave() {
     setSaving(true)
     try {
@@ -428,13 +439,13 @@ export default function AssetsSection({ submissionId, submission, isReadOnly, on
         })
         qc.invalidateQueries(['loans', submissionId])
       } else if (cat.isSingle || editTarget?.isSingle) {
-        await api.post(`/tax/submissions/${submissionId}/assets/${cat.endpoint}/`, formVals)
+        await api.post(`/tax/submissions/${submissionId}/assets/${cat.endpoint}/`, cleanPayload(cat, formVals))
         qc.invalidateQueries([cat.queryKey, submissionId])
       } else if (editTarget) {
-        await api.patch(`/tax/assets/${cat.endpoint}/${editTarget.id}/`, formVals)
+        await api.patch(`/tax/assets/${cat.endpoint}/${editTarget.id}/`, cleanPayload(cat, formVals))
         qc.invalidateQueries([cat.queryKey, submissionId])
       } else {
-        await api.post(`/tax/submissions/${submissionId}/assets/${cat.endpoint}/`, formVals)
+        await api.post(`/tax/submissions/${submissionId}/assets/${cat.endpoint}/`, cleanPayload(cat, formVals))
         qc.invalidateQueries([cat.queryKey, submissionId])
       }
 
