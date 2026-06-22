@@ -78,6 +78,7 @@ export default function LiabilitiesSection({ submissionId, submission, documents
         toast.success('Added')
       }
       qc.invalidateQueries(['liabilities', submissionId])
+      qc.invalidateQueries(['cashflow-suggested', submissionId])
       setModalOpen(false)
     } catch {
       toast.error('Failed to save')
@@ -89,6 +90,7 @@ export default function LiabilitiesSection({ submissionId, submission, documents
     try {
       await api.delete(`/tax/liabilities/${id}/`)
       qc.invalidateQueries(['liabilities', submissionId])
+      qc.invalidateQueries(['cashflow-suggested', submissionId])
       toast.success('Deleted')
     } catch {
       toast.error('Failed to delete')

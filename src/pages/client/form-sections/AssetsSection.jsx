@@ -450,6 +450,7 @@ export default function AssetsSection({ submissionId, submission, isReadOnly, on
         qc.invalidateQueries([cat.queryKey, submissionId])
       }
 
+      qc.invalidateQueries(['cashflow-suggested', submissionId])
       toast.success(editTarget && !editTarget.isSingle ? 'Updated' : 'Saved')
       setModalOpen(false)
     } catch {
@@ -462,6 +463,7 @@ export default function AssetsSection({ submissionId, submission, isReadOnly, on
     try {
       await api.delete(`/tax/assets/${cat.endpoint}/${row.id}/`)
       qc.invalidateQueries([cat.queryKey, submissionId])
+      qc.invalidateQueries(['cashflow-suggested', submissionId])
       toast.success('Removed')
     } catch {
       toast.error('Failed to remove')

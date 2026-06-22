@@ -9,12 +9,34 @@ import NumberInput from '../../../components/common/NumberInput'
 const D = (v) => parseFloat(v || 0)
 const fmt = (v) => D(v).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+// Fields whose values are always derived from Assets / Liabilities records.
+// They are read-only in this form — edit the source records to change them.
+const LINKED_SCALARS = new Set([
+  'payment_purchase_land_building',
+  'payment_purchase_motor_vehicle',
+  'payment_purchase_other_assets',
+  'payment_investment_shares',
+  'receipt_debtor_received',
+  'payment_loans_given_others',
+  'receipt_bank_loan',
+  'payment_repayment_bank_loan',
+  'receipt_sale_land_building',
+  'receipt_sale_motor_vehicle',
+  'receipt_sale_other_assets',
+  'receipt_sale_shares',
+])
+
 /* ── Numeric input row ── */
-function AmountRow({ label, fieldKey, value, onChange, readOnly }) {
+function AmountRow({ label, fieldKey, value, onChange, readOnly, isLinked }) {
   return (
     <div className="flex items-center justify-between py-2 border-b border-brand-gray-border/40 gap-3">
-      <span className="text-sm text-brand-gray flex-1">{label}</span>
-      {readOnly ? (
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <span className="text-sm text-brand-gray">{label}</span>
+        {isLinked && (
+          <span className="text-[10px] bg-brand-yellow/10 text-brand-yellow border border-brand-yellow/20 px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide shrink-0">auto</span>
+        )}
+      </div>
+      {(readOnly || isLinked) ? (
         <span className="text-sm font-mono text-white w-36 text-right">{fmt(value)}</span>
       ) : (
         <NumberInput
@@ -229,13 +251,17 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    // Wait until suggested data has loaded (it drives auto-fill)
     if (suggested === undefined) return
     const nv = (k, sv, sg) => {
       if (Array.isArray(DEFAULTS[k])) {
         const savedArr = Array.isArray(sv) ? sv : []
         const sugArr   = Array.isArray(sg) ? sg : []
         return savedArr.length > 0 ? savedArr : sugArr
+      }
+      // Fields sourced from Assets / Liabilities always follow the live computed value
+      if (LINKED_SCALARS.has(k)) {
+        const sugOk = sg != null && sg !== '' && !isNaN(parseFloat(sg)) && parseFloat(sg) !== 0
+        return sugOk ? String(sg) : ''
       }
       const savedOk = sv != null && sv !== '' && !isNaN(parseFloat(sv)) && parseFloat(sv) !== 0
       const sugOk   = sg != null && sg !== '' && !isNaN(parseFloat(sg)) && parseFloat(sg) !== 0
@@ -352,22 +378,22 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
         <SectionHead icon={TrendingUp} title="Receipts During the Year" color="text-brand-success" />
 
         {[
-          ['receipt_employment_income',     'Employment Income'],
-          ['receipt_interest_fds',          'Interest Income on Fixed Deposits'],
-          ['receipt_interest_savings',      'Interest Income on Savings Accounts'],
-          ['receipt_rent_income',           'Rent Income'],
-          ['receipt_tb_securities',         'Income on Sale of T/B and Securities'],
-          ['receipt_sale_shares',           'Sale of Shares'],
-          ['receipt_dividend_income',       'Dividend Income'],
-          ['receipt_drawings_sole_partner', 'Drawings from Sole / Partnership Businesses'],
-          ['receipt_bank_loan',             'Bank Loan Received'],
-          ['receipt_other_loans',           'Other Loans Received'],
-          ['receipt_debtor_received',       'Debtor Received'],
-          ['receipt_sale_land_building',    'Sale of Land or Building'],
-          ['receipt_sale_motor_vehicle',    'Sale of Motor Vehicle'],
-          ['receipt_sale_other_assets',     'Sale of Other Assets'],
-        ].map(([key, label]) => (
-          <AmountRow key={key} label={label} fieldKey={key} value={form[key]} onChange={set} readOnly={ro} />
+          ['receipt_employment_income',     'Employment Income',                           false],
+          ['receipt_interest_fds',          'Interest Income on Fixed Deposits',           false],
+          ['receipt_interest_savings',      'Interest Income on Savings Accounts',         false],
+          ['receipt_rent_income',           'Rent Income',                                 false],
+          ['receipt_tb_securities',         'Income on Sale of T/B and Securities',        false],
+          ['receipt_sale_shares',           'Sale of Shares',                              true],
+          ['receipt_dividend_income',       'Dividend Income',                             false],
+          ['receipt_drawings_sole_partner', 'Drawings from Sole / Partnership Businesses', false],
+          ['receipt_bank_loan',             'Bank Loan Received',                          true],
+          ['receipt_other_loans',           'Other Loans Received',                        false],
+          ['receipt_debtor_received',       'Debtor Received',                             true],
+          ['receipt_sale_land_building',    'Sale of Land or Building',                    true],
+          ['receipt_sale_motor_vehicle',    'Sale of Motor Vehicle',                       true],
+          ['receipt_sale_other_assets',     'Sale of Other Assets',                        true],
+        ].map(([key, label, isLinked]) => (
+          <AmountRow key={key} label={label} fieldKey={key} value={form[key]} onChange={set} readOnly={ro} isLinked={isLinked} />
         ))}
 
         {/* Other receipts — dynamic list */}
@@ -387,20 +413,20 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
         <SectionHead icon={TrendingDown} title="Payments During the Year" color="text-brand-red" />
 
         {[
-          ['payment_purchase_land_building',  'Purchase of Land or Building'],
-          ['payment_purchase_motor_vehicle',  'Purchase of Motor Vehicle'],
-          ['payment_purchase_other_assets',   'Purchase of Other Assets'],
-          ['payment_repayment_bank_loan',     'Repayment of Bank Loan'],
-          ['payment_lease_rentals',           'Payment of Lease Rentals'],
-          ['payment_jewellery_gems',          'Purchase of Jewellery / Gems / Silver'],
-          ['payment_other_loans',             'Payment of Other Loans'],
-          ['payment_wht',                     'WHT'],
-          ['payment_income_tax',              'Income Tax Payments'],
-          ['payment_apit',                    'APIT'],
-          ['payment_investment_shares',       'Investment on Shares'],
-          ['payment_loans_given_others',      'Loans Given to Others'],
-        ].map(([key, label]) => (
-          <AmountRow key={key} label={label} fieldKey={key} value={form[key]} onChange={set} readOnly={ro} />
+          ['payment_purchase_land_building',  'Purchase of Land or Building',          true],
+          ['payment_purchase_motor_vehicle',  'Purchase of Motor Vehicle',             true],
+          ['payment_purchase_other_assets',   'Purchase of Other Assets',              true],
+          ['payment_repayment_bank_loan',     'Repayment of Bank Loan',                true],
+          ['payment_lease_rentals',           'Payment of Lease Rentals',              false],
+          ['payment_jewellery_gems',          'Purchase of Jewellery / Gems / Silver', false],
+          ['payment_other_loans',             'Payment of Other Loans',                false],
+          ['payment_wht',                     'WHT',                                   false],
+          ['payment_income_tax',              'Income Tax Payments',                   false],
+          ['payment_apit',                    'APIT',                                  false],
+          ['payment_investment_shares',       'Investment on Shares',                  true],
+          ['payment_loans_given_others',      'Loans Given to Others',                 true],
+        ].map(([key, label, isLinked]) => (
+          <AmountRow key={key} label={label} fieldKey={key} value={form[key]} onChange={set} readOnly={ro} isLinked={isLinked} />
         ))}
 
         {/* Other payments — dynamic list */}

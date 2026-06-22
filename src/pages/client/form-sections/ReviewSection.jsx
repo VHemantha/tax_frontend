@@ -7,10 +7,24 @@ import StatusBadge from '../../../components/common/StatusBadge'
 import { ChevronLeft, Send, FileText, CheckCircle, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+function D(v) { return parseFloat(v || 0) }
+
 export default function ReviewSection({ submissionId, submission, documents, onPrev, isReadOnly }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [confirmed, setConfirmed] = useState(false)
+
+  const localEmp        = D(submission?.local_employment?.amount)
+  const foreign         = D(submission?.foreign_income?.employment_service_fee)
+                        + D(submission?.foreign_income?.foreign_business_income)
+                        + D(submission?.foreign_income?.other_foreign_income)
+  const terminal        = D(submission?.terminal_benefit?.amount)
+  const rentGross       = D(submission?.rent_income?.gross_amount)
+  const interest        = D(submission?.interest_income?.amount)
+  const dividendTaxable = D(submission?.dividend_income?.amount)
+  const soleProp        = (submission?.sole_proprietorships || []).reduce((s, sp) => s + D(sp.amount), 0)
+  const otherInc        = D(submission?.other_income?.amount)
+  const totalAssessable = localEmp + foreign + terminal + rentGross + interest + dividendTaxable + soleProp + otherInc
 
   const submitMutation = useMutation({
     mutationFn: () => api.post(`/tax/submissions/${submissionId}/submit/`),
@@ -54,34 +68,31 @@ export default function ReviewSection({ submissionId, submission, documents, onP
       <div className="card">
         <h3 className="section-header"><FileText size={16} className="text-brand-yellow" />Income Summary</h3>
         <div className="space-y-0">
-          {submission?.local_employment?.amount > 0 && (
-            <SummaryRow label="Local Employment Income" value={formatCurrency(submission.local_employment?.amount)} />
+          {localEmp > 0 && (
+            <SummaryRow label="Local Employment Income" value={formatCurrency(localEmp)} />
           )}
-          {(submission?.foreign_income?.employment_service_fee > 0 || submission?.foreign_income?.other_foreign_income > 0) && (
-            <SummaryRow label="Foreign Income" value={formatCurrency(
-              (parseFloat(submission.foreign_income?.employment_service_fee || 0) +
-               parseFloat(submission.foreign_income?.other_foreign_income || 0)).toFixed(2)
-            )} />
+          {foreign > 0 && (
+            <SummaryRow label="Foreign Income" value={formatCurrency(foreign)} />
           )}
-          {submission?.terminal_benefit?.amount > 0 && (
-            <SummaryRow label="Terminal Benefit" value={formatCurrency(submission.terminal_benefit?.amount)} />
+          {terminal > 0 && (
+            <SummaryRow label="Terminal Benefit" value={formatCurrency(terminal)} />
           )}
-          {submission?.rent_income?.gross_amount > 0 && (
-            <SummaryRow label="Rent Income (Gross)" value={formatCurrency(submission.rent_income?.gross_amount)} />
+          {rentGross > 0 && (
+            <SummaryRow label="Rent Income (Gross)" value={formatCurrency(rentGross)} />
           )}
-          {submission?.interest_income?.amount > 0 && (
-            <SummaryRow label="Interest Income" value={formatCurrency(submission.interest_income?.amount)} />
+          {interest > 0 && (
+            <SummaryRow label="Interest Income" value={formatCurrency(interest)} />
           )}
-          {submission?.dividend_income?.amount > 0 && (
-            <SummaryRow label="Dividend Income" value={formatCurrency(submission.dividend_income?.amount)} />
+          {dividendTaxable > 0 && (
+            <SummaryRow label="Dividend Income" value={formatCurrency(dividendTaxable)} />
           )}
-          {submission?.sole_proprietorship?.amount > 0 && (
-            <SummaryRow label="Sole Proprietorship/Partnership Income" value={formatCurrency(submission.sole_proprietorship?.amount)} />
+          {soleProp > 0 && (
+            <SummaryRow label="Sole Proprietorship / Partnership Income" value={formatCurrency(soleProp)} />
           )}
-          {submission?.other_income?.amount > 0 && (
-            <SummaryRow label="Other Income" value={formatCurrency(submission.other_income?.amount)} />
+          {otherInc > 0 && (
+            <SummaryRow label="Other Income" value={formatCurrency(otherInc)} />
           )}
-          <SummaryRow label="TOTAL ASSESSABLE INCOME" value={formatCurrency(submission?.total_assessable_income)} highlight />
+          <SummaryRow label="TOTAL ASSESSABLE INCOME" value={formatCurrency(totalAssessable)} highlight />
         </div>
       </div>
 
