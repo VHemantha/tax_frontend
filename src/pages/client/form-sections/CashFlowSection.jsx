@@ -9,8 +9,8 @@ import NumberInput from '../../../components/common/NumberInput'
 const D = (v) => parseFloat(v || 0)
 const fmt = (v) => D(v).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-// Fields whose values are always derived from Assets / Liabilities records.
-// They are read-only in this form — edit the source records to change them.
+// Fields whose values are auto-populated from Assets / Liabilities records.
+// They show an "auto" badge and refresh when source records change, but remain editable.
 const LINKED_SCALARS = new Set([
   'payment_purchase_land_building',
   'payment_purchase_motor_vehicle',
@@ -36,7 +36,7 @@ function AmountRow({ label, fieldKey, value, onChange, readOnly, isLinked }) {
           <span className="text-[10px] bg-brand-yellow/10 text-brand-yellow border border-brand-yellow/20 px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide shrink-0">auto</span>
         )}
       </div>
-      {(readOnly || isLinked) ? (
+      {readOnly ? (
         <span className="text-sm font-mono text-white w-36 text-right">{fmt(value)}</span>
       ) : (
         <NumberInput

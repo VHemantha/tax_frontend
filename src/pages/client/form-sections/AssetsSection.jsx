@@ -12,11 +12,16 @@ const fmtAmt = v => {
 const numOrDash = v => { const n = parseFloat(v || 0); return (!isNaN(n) && n !== 0) ? fmtAmt(n) : '—' }
 const normVal = v => typeof v === 'object' ? v : (v == null || v === '' || (!isNaN(parseFloat(v)) && parseFloat(v) === 0)) ? '' : v
 
-// Returns the cost if the date falls within [yearStart, yearEnd], else 0
+// Returns the cost if the date falls within [yearStart, yearEnd], else 0.
+// Normalises to first 10 chars (YYYY-MM-DD) so datetime strings from the API
+// ('2025-06-15T00:00:00') compare correctly against plain date strings.
 function boughtDuringYear(row, costKey, yearStart, yearEnd) {
-  const d = row.date_of_acquisition
-  if (!d || !yearStart || !yearEnd) return 0
-  return (d >= yearStart && d <= yearEnd) ? parseFloat(row[costKey] || 0) : 0
+  const raw = row.date_of_acquisition
+  if (!raw || !yearStart || !yearEnd) return 0
+  const d  = String(raw).trim().slice(0, 10)
+  const ys = String(yearStart).trim().slice(0, 10)
+  const ye = String(yearEnd).trim().slice(0, 10)
+  return (d >= ys && d <= ye) ? parseFloat(row[costKey] || 0) : 0
 }
 
 const CATEGORIES = [
@@ -453,8 +458,12 @@ export default function AssetsSection({ submissionId, submission, isReadOnly, on
       qc.invalidateQueries(['cashflow-suggested', submissionId])
       toast.success(editTarget && !editTarget.isSingle ? 'Updated' : 'Saved')
       setModalOpen(false)
-    } catch {
-      toast.error('Failed to save')
+    } catch (err) {
+      const data = err?.response?.data
+      const msg = data
+        ? Object.entries(data).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' | ')
+        : 'Failed to save'
+      toast.error(msg)
     }
     setSaving(false)
   }
