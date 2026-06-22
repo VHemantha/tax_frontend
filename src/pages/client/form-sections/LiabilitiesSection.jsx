@@ -61,6 +61,9 @@ export default function LiabilitiesSection({ submissionId, submission, documents
     if (payload.date_of_commencement === '' || payload.date_of_commencement == null) {
       payload.date_of_commencement = null
     }
+    ;['original_amount', 'amount_as_at_date', 'amount_repaid_during_year'].forEach(k => {
+      if (payload[k] === '' || payload[k] == null) payload[k] = 0
+    })
     return payload
   }
 

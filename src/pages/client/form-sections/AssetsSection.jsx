@@ -411,12 +411,13 @@ export default function AssetsSection({ submissionId, submission, isReadOnly, on
     setModalOpen(true)
   }
 
-  // Convert empty-string date values to null so DRF DateField doesn't reject them
   function cleanPayload(cat, vals) {
     const payload = { ...vals }
     ;(cat?.fields || []).forEach(f => {
       if (f.type === 'date' && (payload[f.key] === '' || payload[f.key] == null)) {
         payload[f.key] = null
+      } else if (f.type === 'number' && (payload[f.key] === '' || payload[f.key] == null)) {
+        payload[f.key] = 0
       }
     })
     return payload
