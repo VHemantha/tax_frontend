@@ -24,7 +24,8 @@ export default function ReviewSection({ submissionId, submission, documents, onP
   const dividendTaxable = D(submission?.dividend_income?.amount)
   const soleProp        = (submission?.sole_proprietorships || []).reduce((s, sp) => s + D(sp.amount), 0)
   const otherInc        = D(submission?.other_income?.amount)
-  const totalAssessable = localEmp + foreign + terminal + rentGross + interest + dividendTaxable + soleProp + otherInc
+  const tbSecurities    = D(submission?.tb_securities?.gross_amount)
+  const totalAssessable = localEmp + foreign + terminal + rentGross + interest + dividendTaxable + soleProp + otherInc + tbSecurities
 
   const submitMutation = useMutation({
     mutationFn: () => api.post(`/tax/submissions/${submissionId}/submit/`),
@@ -91,6 +92,9 @@ export default function ReviewSection({ submissionId, submission, documents, onP
           )}
           {otherInc > 0 && (
             <SummaryRow label="Other Income" value={formatCurrency(otherInc)} />
+          )}
+          {tbSecurities > 0 && (
+            <SummaryRow label="T-Bills & Securities Income" value={formatCurrency(tbSecurities)} />
           )}
           <SummaryRow label="TOTAL ASSESSABLE INCOME" value={formatCurrency(totalAssessable)} highlight />
         </div>
