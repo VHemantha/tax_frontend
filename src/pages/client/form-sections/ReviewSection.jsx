@@ -9,7 +9,7 @@ import toast from 'react-hot-toast'
 
 function D(v) { return parseFloat(v || 0) }
 
-export default function ReviewSection({ submissionId, submission, documents, onPrev, isReadOnly }) {
+export default function ReviewSection({ submissionId, submission, documents, onPrev, onGoToStep, isReadOnly }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [confirmed, setConfirmed] = useState(false)
@@ -145,7 +145,14 @@ export default function ReviewSection({ submissionId, submission, documents, onP
           <AlertTriangle size={16} className="text-brand-red flex-shrink-0 mt-0.5" />
           <p className="text-sm text-brand-gray">
             <span className="text-white font-medium">Missing: </span>
-            Declarant details are required before submitting. Please complete Step 4.
+            Declarant details are required before submitting.{' '}
+            <button
+              type="button"
+              onClick={() => onGoToStep?.(4)}
+              className="text-brand-yellow underline hover:opacity-80 transition-opacity"
+            >
+              Go to Step 4 — Declarant Details
+            </button>
           </p>
         </div>
       )}

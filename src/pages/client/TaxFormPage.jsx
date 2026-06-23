@@ -90,6 +90,7 @@ export default function TaxFormPage() {
     isReadOnly,
     onNext: () => setCurrentStep(s => Math.min(s + 1, STEPS.length - 1)),
     onPrev: () => setCurrentStep(s => Math.max(s - 1, 0)),
+    onGoToStep: (idx) => setCurrentStep(idx),
     onRefresh: () => qc.invalidateQueries(['submission', submissionId]),
   }
 

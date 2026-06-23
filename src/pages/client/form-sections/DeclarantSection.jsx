@@ -28,15 +28,29 @@ export default function DeclarantSection({ submissionId, isReadOnly, onNext, onP
     try {
       await api.post(`/tax/submissions/${submissionId}/declarant/`, data)
       toast.success('Declarant details saved')
-      refetch()
+      await refetch()
       onRefresh()
+      return true
     } catch (err) {
       const msg = err.response?.data
         ? Object.entries(err.response.data).map(([k, v]) => `${k}: ${v}`).join(', ')
         : 'Failed to save'
       toast.error(msg)
+      return false
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
+  }
+
+  async function handleNext() {
+    if (existing?.id) {
+      onNext()
+      return
+    }
+    handleSubmit(async (data) => {
+      const saved = await onSubmit(data)
+      if (saved) onNext()
+    })()
   }
 
   return (
@@ -177,7 +191,7 @@ export default function DeclarantSection({ submissionId, isReadOnly, onNext, onP
         <button type="button" onClick={onPrev} className="btn-secondary">
           <ChevronLeft size={15} /> Previous
         </button>
-        <button type="button" onClick={onNext} className="btn-primary">
+        <button type="button" onClick={handleNext} className="btn-primary">
           Next: Review & Submit <ChevronRight size={15} />
         </button>
       </div>
