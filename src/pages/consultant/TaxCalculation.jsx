@@ -330,6 +330,14 @@ const SECTION_FIELDS = {
       { key: 'description', label: 'Description', type: 'textarea' },
     ],
   },
+  tb_securities: {
+    endpoint: id => `/tax/submissions/${id}/income/tb-securities/`,
+    label: 'T-Bills & Securities',
+    fields: [
+      { key: 'gross_amount', label: 'Gross Amount (Rs.)', type: 'number' },
+      { key: 'wht_deducted', label: 'WHT Deducted (Rs.)', type: 'number' },
+    ],
+  },
   qualifying_payments: {
     endpoint: id => `/tax/submissions/${id}/qualifying-payments/`,
     label: 'Qualifying Payments',
@@ -574,45 +582,81 @@ export default function TaxCalculation() {
   }
 
   // ── All hooks must be above any conditional return (Rules of Hooks) ──────────
-  // Frontend-computed rent relief: 25% of gross rent — instant, no API needed
-  const computedRentRelief = (parseFloat(submission?.rent_income?.gross_amount || 0) * 0.25).toFixed(2)
-
-  // derivedCalc: reactive tax computation — instantly reflects pendingUpdates + liveCalc
+  // derivedCalc: computed directly from submission income fields — always in sync,
+  // no dependency on stale stored totals. pendingUpdates allows consultant overrides.
   const derivedCalc = useMemo(() => {
-    const base = liveCalc || submission || {}
-    const D = (k, fallback = 0) => parseFloat(pendingUpdates[k] ?? base[k] ?? fallback) || fallback
+    const sub = submission || {}
+    const pu  = pendingUpdates
 
-    const tai = D('total_assessable_income')   // includes foreign income
-    const qp  = D('total_qualifying_payments')
-    const pr  = D('personal_relief', 1_800_000)
-    const rr  = D('rent_relief', parseFloat(computedRentRelief) || 0)
+    // ── Income sources (mirrors ReviewSection + backend calculate_full_tax) ──
+    const localEmp  = parseFloat(sub.local_employment?.amount || 0)
+    const fi        = sub.foreign_income || {}
+    const foreignAmt = parseFloat(fi.employment_service_fee  || 0) +
+                       parseFloat(fi.foreign_business_income || 0) +
+                       parseFloat(fi.other_foreign_income    || 0)
+    const terminal  = parseFloat(sub.terminal_benefit?.amount || 0)
+    const rentGross = parseFloat(sub.rent_income?.gross_amount || 0)
+    const interest  = parseFloat(sub.interest_income?.amount || 0)
+    const dividend  = parseFloat(sub.dividend_income?.amount || 0)
+    const exemptDiv = parseFloat(sub.dividend_income?.exempt_amount || 0)
+    const soleProp  = (sub.sole_proprietorships || []).reduce((s, sp) => s + parseFloat(sp.amount || 0), 0)
+    const otherInc  = parseFloat(sub.other_income?.amount || 0)
+    const tbSec     = parseFloat(sub.tb_securities?.gross_amount || 0)
 
-    // Taxable income (includes foreign — shown in UI)
-    const netTaxable = pendingUpdates.net_taxable_income !== undefined
-      ? Math.max(0, parseFloat(pendingUpdates.net_taxable_income) || 0)
+    const computedTai = localEmp + foreignAmt + terminal + rentGross +
+                        interest + dividend + soleProp + otherInc + tbSec
+
+    // ── Qualifying payments ────────────────────────────────────────────────
+    const donCharitable = parseFloat(sub.qualifying_payments?.donation_charitable || 0)
+    const donGovt       = parseFloat(sub.qualifying_payments?.donation_government || 0)
+    const solar         = Math.min(parseFloat(sub.qualifying_payments?.solar_panels_expenditure || 0), 600_000)
+    const computedQP    = donCharitable + donGovt + solar
+
+    // ── Reliefs ────────────────────────────────────────────────────────────
+    const pr = pu.personal_relief !== undefined ? parseFloat(pu.personal_relief) || 0 : 1_800_000
+    const rr = pu.rent_relief     !== undefined ? parseFloat(pu.rent_relief)     || 0 : rentGross * 0.25
+
+    // ── Assessable / taxable income ────────────────────────────────────────
+    const tai = pu.total_assessable_income !== undefined
+      ? parseFloat(pu.total_assessable_income) || 0
+      : computedTai
+
+    const qp = pu.total_qualifying_payments !== undefined
+      ? parseFloat(pu.total_qualifying_payments) || 0
+      : computedQP
+
+    const netTaxable = pu.net_taxable_income !== undefined
+      ? Math.max(0, parseFloat(pu.net_taxable_income) || 0)
       : Math.max(0, tai - qp - pr - rr)
 
-    // Foreign amount (from live submission data)
-    const fi = submission?.foreign_income || {}
-    const foreignAmt = parseFloat(fi.employment_service_fee || 0) +
-                       parseFloat(fi.foreign_business_income || 0) +
-                       parseFloat(fi.other_foreign_income || 0)
-
-    // Slab tax applies only to non-foreign income
+    // ── Progressive slab tax (excludes foreign income) ────────────────────
     const slabTaxable = Math.max(0, netTaxable - foreignAmt)
     const { gross_tax: computedGross, slab_breakdown } = computeSlabTax(slabTaxable)
-    // If consultant manually edited gross_tax, honour that; otherwise use slab result
-    const grossTax = pendingUpdates.gross_tax !== undefined
-      ? (parseFloat(pendingUpdates.gross_tax) || 0)
-      : computedGross
+    const grossTax = pu.gross_tax !== undefined ? parseFloat(pu.gross_tax) || 0 : computedGross
 
-    const credits    = D('total_tax_credits')
-    const foreignTax = D('foreign_income_tax')   // net flat-15% foreign tax (after foreign tax paid credit)
-    const netTax     = Math.max(0, grossTax - credits) + foreignTax
+    // ── Tax credits (Tax Credits section only — no income-section WHT) ────
+    const apit        = parseFloat(sub.tax_credits?.apit_on_salary              || 0)
+    const whtCerts    = parseFloat(sub.tax_credits?.wht_rent_interest_service   || 0)
+    const partnership = parseFloat(sub.tax_credits?.partnership_tax_credit      || 0)
+    const selfAssess  = (sub.self_assessment_payments || []).reduce((s, p) => s + parseFloat(p.amount || 0), 0)
+    const computedCredits = apit + whtCerts + partnership + selfAssess
+
+    const credits = pu.total_tax_credits !== undefined
+      ? parseFloat(pu.total_tax_credits) || 0
+      : computedCredits
+
+    // ── Foreign income tax @ flat 15% ──────────────────────────────────────
+    const foreignTaxPaid  = parseFloat(fi.foreign_tax_paid || 0)
+    const computedForeign = Math.max(0, foreignAmt * 0.15 - foreignTaxPaid)
+    const foreignTax = pu.foreign_income_tax !== undefined
+      ? parseFloat(pu.foreign_income_tax) || 0
+      : computedForeign
+
+    const netTax = Math.max(0, grossTax - credits) + foreignTax
 
     return {
       total_assessable_income:   tai,
-      exempt_dividend_income:    D('exempt_dividend_income'),
+      exempt_dividend_income:    exemptDiv,
       total_qualifying_payments: qp,
       personal_relief:           pr,
       rent_relief:               rr,
@@ -621,11 +665,11 @@ export default function TaxCalculation() {
       slab_breakdown,
       total_tax_credits:         credits,
       foreign_income_tax:        foreignTax,
-      net_tax_payable:           pendingUpdates.net_tax_payable !== undefined
-        ? (parseFloat(pendingUpdates.net_tax_payable) || 0)
+      net_tax_payable:           pu.net_tax_payable !== undefined
+        ? parseFloat(pu.net_tax_payable) || 0
         : netTax,
     }
-  }, [pendingUpdates, liveCalc, submission, computedRentRelief])
+  }, [pendingUpdates, submission])
   // ─────────────────────────────────────────────────────────────────────────────
 
   if (isLoading) return (
@@ -998,6 +1042,23 @@ export default function TaxCalculation() {
                 </>
               )}
 
+              {/* T-Bills & Securities */}
+              {(s?.tb_securities?.gross_amount > 0 || canEdit) && (
+                <>
+                  <SubHeading>T-Bills &amp; Securities Income</SubHeading>
+                  {s?.tb_securities?.gross_amount > 0 && <>
+                    <AmountRow label="Gross Amount" value={s.tb_securities.gross_amount} />
+                    <AmountRow label="WHT Deducted" value={s.tb_securities.wht_deducted} sub />
+                  </>}
+                  {canEdit && (editingSection === 'tb_securities' ? (
+                    <SectionEditForm fields={SECTION_FIELDS.tb_securities.fields} data={s?.tb_securities || {}}
+                      onSave={d => saveSection('tb_securities', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
+                  ) : (
+                    <button onClick={() => setEditingSection('tb_securities')} className="btn-ghost text-xs mt-1"><Pencil size={11} /> Edit</button>
+                  ))}
+                </>
+              )}
+
               <div className="mt-2">
                 <AmountRow label="TOTAL ASSESSABLE INCOME" value={derivedCalc.total_assessable_income} highlight />
               </div>
@@ -1017,7 +1078,7 @@ export default function TaxCalculation() {
                       onSave={d => saveSection('qualifying_payments', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
                   )}
                   <div className="mt-2">
-                    <AmountRow label="Total Qualifying Payments" value={s.total_qualifying_payments} highlight />
+                    <AmountRow label="Total Qualifying Payments" value={derivedCalc.total_qualifying_payments} highlight />
                   </div>
                 </div>
               ) : (
