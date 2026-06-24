@@ -958,7 +958,7 @@ export default function TaxCalculation() {
                     <AmountRow label="WHT Deducted" value={s.rent_income.wht_deducted} sub />
                     <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border">
                       <span className="text-sm text-brand-success">Rent Relief (25% auto)</span>
-                      <span className="font-mono text-sm text-brand-success">{formatCurrency(computedRentRelief)}</span>
+                      <span className="font-mono text-sm text-brand-success">{formatCurrency(derivedCalc.rent_relief)}</span>
                     </div>
                   </>}
                   {canEdit && (editingSection === 'rent_income' ? (
