@@ -7,7 +7,7 @@ import clsx from 'clsx'
 import NumberInput from '../../../components/common/NumberInput'
 
 const D = (v) => parseFloat(v || 0)
-const fmt = (v) => D(v).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmt = (v) => Math.round(D(v)).toLocaleString('en-LK')
 
 // Fields whose values are auto-populated from Assets / Liabilities records.
 // They show an "auto" badge and refresh when source records change, but remain editable.
@@ -170,7 +170,7 @@ function OtherItemsList({ label, entries, onChange, readOnly }) {
         <div className="flex justify-between py-1 text-xs text-brand-gray">
           <span>{entries.length} item{entries.length !== 1 ? 's' : ''}</span>
           <span className="font-mono font-semibold text-white">
-            Rs. {entries.reduce((s, r) => s + parseFloat(r.amount || 0), 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            Rs. {Math.round(entries.reduce((s, r) => s + parseFloat(r.amount || 0), 0)).toLocaleString('en-LK')}
           </span>
         </div>
       )}

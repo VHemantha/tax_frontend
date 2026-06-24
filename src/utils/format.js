@@ -1,11 +1,11 @@
 /**
- * Format a number as Sri Lankan Rupees (2 decimal places).
+ * Format a number as Sri Lankan Rupees, no decimal places.
  */
 export function formatCurrency(value) {
-  if (value === null || value === undefined || value === '') return 'Rs. 0.00'
-  const num = parseFloat(value)
-  if (isNaN(num)) return 'Rs. 0.00'
-  return `Rs. ${num.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  if (value === null || value === undefined || value === '') return 'Rs. 0'
+  const num = Math.round(parseFloat(value))
+  if (isNaN(num)) return 'Rs. 0'
+  return `Rs. ${num.toLocaleString('en-LK')}`
 }
 
 /**

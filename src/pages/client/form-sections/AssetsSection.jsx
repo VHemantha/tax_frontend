@@ -6,8 +6,8 @@ import toast from 'react-hot-toast'
 import NumberInput from '../../../components/common/NumberInput'
 
 const fmtAmt = v => {
-  const n = parseFloat(v || 0)
-  return isNaN(n) ? '0.00' : n.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const n = Math.round(parseFloat(v || 0))
+  return isNaN(n) ? '0' : n.toLocaleString('en-LK')
 }
 const numOrDash = v => { const n = parseFloat(v || 0); return (!isNaN(n) && n !== 0) ? fmtAmt(n) : '—' }
 const normVal = v => typeof v === 'object' ? v : (v == null || v === '' || (!isNaN(parseFloat(v)) && parseFloat(v) === 0)) ? '' : v

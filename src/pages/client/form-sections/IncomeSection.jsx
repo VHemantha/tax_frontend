@@ -320,7 +320,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
                 <div className="py-1">
                   <ReliefPill
                     label="Rent Relief (25% — auto calculated)"
-                    value={`Rs. ${liveRentRelief.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    value={`Rs. ${Math.round(liveRentRelief).toLocaleString('en-LK')}`}
                   />
                 </div>
               )}
@@ -479,11 +479,11 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
             {/* Auto Reliefs */}
             <SubSection icon={Info} title="Statutory Reliefs (Auto Calculated)">
               <div className="space-y-2 pt-1">
-                <ReliefPill label="Personal Relief (Fixed)" value="Rs. 1,800,000.00" />
+                <ReliefPill label="Personal Relief (Fixed)" value="Rs. 1,800,000" />
                 <ReliefPill
                   label="Rent Relief (25% of Gross Rent — auto)"
                   value={liveRentRelief > 0
-                    ? `Rs. ${liveRentRelief.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    ? `Rs. ${Math.round(liveRentRelief).toLocaleString('en-LK')}`
                     : 'Enter Gross Rent above'}
                 />
               </div>
@@ -529,7 +529,7 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
                   {liveWHTTotal > 0 && (
                     <ReliefPill
                       label="WHT (Rent + Interest + Business — auto)"
-                      value={`Rs. ${liveWHTTotal.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                      value={`Rs. ${Math.round(liveWHTTotal).toLocaleString('en-LK')}`}
                     />
                   )}
                   {liveWHTTotal === 0 && (
@@ -625,7 +625,7 @@ function SoleProprietorshipEntries({ submissionId, isReadOnly, onWHTChange }) {
     } catch { toast.error('Failed to delete') }
   }
 
-  const fmt = v => parseFloat(v || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const fmt = v => Math.round(parseFloat(v || 0)).toLocaleString('en-LK')
 
   return (
     <div className="space-y-3">

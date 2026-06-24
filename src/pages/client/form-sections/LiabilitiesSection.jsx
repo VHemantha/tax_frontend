@@ -18,8 +18,8 @@ const FIELDS = [
 const DEFAULTS = { description: '', security_on_liability: '', date_of_commencement: '', original_amount: '', amount_as_at_date: '', amount_repaid_during_year: '' }
 
 function fmt(v) {
-  const n = parseFloat(v || 0)
-  return isNaN(n) ? '—' : n.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const n = Math.round(parseFloat(v || 0))
+  return isNaN(n) ? '—' : n.toLocaleString('en-LK')
 }
 
 function loanObtainedDuringYear(lib, yearStart, yearEnd) {
