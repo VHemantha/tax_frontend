@@ -9,9 +9,20 @@ import NumberInput from '../../components/common/NumberInput'
 import {
   ArrowLeft, Calculator, Send, FileText, Eye, Download,
   CheckCircle, AlertCircle, Pencil, Save, X, ChevronDown, ChevronRight,
-  User, DollarSign, Home, Banknote, TrendingUp, Trash2, Plus,
+  User, Home, Banknote, TrendingUp, Trash2, Plus,
   History, Upload, Archive
 } from 'lucide-react'
+
+function RsIcon({ size = 16, className = '' }) {
+  return (
+    <span
+      style={{ fontSize: Math.round(size * 0.75), lineHeight: 1, display: 'inline-flex', alignItems: 'center' }}
+      className={`font-bold font-mono ${className}`}
+    >
+      Rs
+    </span>
+  )
+}
 import toast from 'react-hot-toast'
 
 /* ─── Frontend tax slab calculator (mirrors tax_calculator.py) ─── */
@@ -833,7 +844,7 @@ export default function TaxCalculation() {
           <div className="lg:col-span-2 space-y-4">
 
             {/* ── Income ── */}
-            <Section title="Income" icon={DollarSign} defaultOpen
+            <Section title="Income" icon={RsIcon} defaultOpen
               onEdit={canEdit ? () => setEditingSection(editingSection ? null : 'income_multi') : null}
               editing={editingSection === 'income_multi'}>
 

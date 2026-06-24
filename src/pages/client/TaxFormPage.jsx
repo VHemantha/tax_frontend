@@ -10,13 +10,24 @@ import CashFlowSection from './form-sections/CashFlowSection'
 import DeclarantSection from './form-sections/DeclarantSection'
 import ReviewSection from './form-sections/ReviewSection'
 import {
-  DollarSign, Building2, CreditCard, User, FileCheck, CheckCircle, BarChart2
+  Building2, CreditCard, User, FileCheck, CheckCircle, BarChart2
 } from 'lucide-react'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 
+function RsIcon({ size = 16, className = '' }) {
+  return (
+    <span
+      style={{ fontSize: Math.round(size * 0.75), lineHeight: 1, display: 'inline-flex', alignItems: 'center' }}
+      className={`font-bold font-mono ${className}`}
+    >
+      Rs
+    </span>
+  )
+}
+
 const STEPS = [
-  { id: 'income',      label: 'Income & Expenses',         icon: DollarSign,  shortLabel: 'Income' },
+  { id: 'income',      label: 'Income & Expenses',         icon: RsIcon,      shortLabel: 'Income' },
   { id: 'assets',      label: 'Assets',                    icon: Building2,   shortLabel: 'Assets' },
   { id: 'liabilities', label: 'Liabilities',               icon: CreditCard,  shortLabel: 'Liabilities' },
   { id: 'cashflow',    label: 'Receipts & Payments',       icon: BarChart2,   shortLabel: 'Cash Flow' },
