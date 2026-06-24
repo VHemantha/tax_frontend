@@ -582,26 +582,31 @@ export default function TaxCalculation() {
     const base = liveCalc || submission || {}
     const D = (k, fallback = 0) => parseFloat(pendingUpdates[k] ?? base[k] ?? fallback) || fallback
 
-    const tai = D('total_assessable_income')
+    const tai = D('total_assessable_income')   // includes foreign income
     const qp  = D('total_qualifying_payments')
     const pr  = D('personal_relief', 1_800_000)
     const rr  = D('rent_relief', parseFloat(computedRentRelief) || 0)
 
-    // If net_taxable_income explicitly overridden by consultant, use that directly
+    // Taxable income (includes foreign — shown in UI)
     const netTaxable = pendingUpdates.net_taxable_income !== undefined
       ? Math.max(0, parseFloat(pendingUpdates.net_taxable_income) || 0)
       : Math.max(0, tai - qp - pr - rr)
 
-    const { gross_tax: computedGross, slab_breakdown } = computeSlabTax(netTaxable)
+    // Foreign amount (from live submission data)
+    const fi = submission?.foreign_income || {}
+    const foreignAmt = parseFloat(fi.employment_service_fee || 0) +
+                       parseFloat(fi.foreign_business_income || 0) +
+                       parseFloat(fi.other_foreign_income || 0)
+
+    // Slab tax applies only to non-foreign income
+    const slabTaxable = Math.max(0, netTaxable - foreignAmt)
+    const { gross_tax: computedGross, slab_breakdown } = computeSlabTax(slabTaxable)
     // If consultant manually edited gross_tax, honour that; otherwise use slab result
     const grossTax = pendingUpdates.gross_tax !== undefined
       ? (parseFloat(pendingUpdates.gross_tax) || 0)
       : computedGross
 
     const credits    = D('total_tax_credits')
-    const whtRent    = D('wht_rent')
-    const whtInt     = D('wht_interest')
-    const whtSoleProp = D('wht_sole_prop')
     const foreignTax = D('foreign_income_tax')   // net flat-15% foreign tax (after foreign tax paid credit)
     const netTax     = Math.max(0, grossTax - credits) + foreignTax
 
@@ -615,9 +620,6 @@ export default function TaxCalculation() {
       gross_tax:                 grossTax,
       slab_breakdown,
       total_tax_credits:         credits,
-      wht_rent:                  whtRent,
-      wht_interest:              whtInt,
-      wht_sole_prop:             whtSoleProp,
       foreign_income_tax:        foreignTax,
       net_tax_payable:           pendingUpdates.net_tax_payable !== undefined
         ? (parseFloat(pendingUpdates.net_tax_payable) || 0)
@@ -867,13 +869,18 @@ export default function TaxCalculation() {
               )}
 
               {/* Foreign Income */}
-              {s?.foreign_income && (
+              {(s?.foreign_income || canEdit) && (
                 <>
                   <SubHeading>Foreign Income</SubHeading>
-                  <AmountRow label="Employment / Service Fee" value={s.foreign_income.employment_service_fee} />
-                  <AmountRow label="Other Foreign Income" value={s.foreign_income.other_foreign_income} />
+                  {s?.foreign_income && <>
+                    <AmountRow label="Employment / Service Fee" value={s.foreign_income.employment_service_fee} />
+                    {parseFloat(s.foreign_income.foreign_business_income || 0) > 0 && (
+                      <AmountRow label="Business Income" value={s.foreign_income.foreign_business_income} />
+                    )}
+                    <AmountRow label="Other Foreign Income" value={s.foreign_income.other_foreign_income} />
+                  </>}
                   {canEdit && (editingSection === 'foreign_income' ? (
-                    <SectionEditForm fields={SECTION_FIELDS.foreign_income.fields} data={s.foreign_income}
+                    <SectionEditForm fields={SECTION_FIELDS.foreign_income.fields} data={s?.foreign_income || {}}
                       onSave={d => saveSection('foreign_income', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
                   ) : (
                     <button onClick={() => setEditingSection('foreign_income')} className="btn-ghost text-xs mt-1"><Pencil size={11} /> Edit</button>
@@ -882,13 +889,15 @@ export default function TaxCalculation() {
               )}
 
               {/* Terminal Benefit */}
-              {s?.terminal_benefit?.amount > 0 && (
+              {(s?.terminal_benefit?.amount > 0 || canEdit) && (
                 <>
                   <SubHeading>Terminal Benefit</SubHeading>
-                  <AmountRow label="Amount" value={s.terminal_benefit.amount} />
-                  <Row label="Benefit Types" value={s.terminal_benefit.benefit_types} />
+                  {s?.terminal_benefit?.amount > 0 && <>
+                    <AmountRow label="Amount" value={s.terminal_benefit.amount} />
+                    <Row label="Benefit Types" value={s.terminal_benefit.benefit_types} />
+                  </>}
                   {canEdit && (editingSection === 'terminal_benefit' ? (
-                    <SectionEditForm fields={SECTION_FIELDS.terminal_benefit.fields} data={s.terminal_benefit}
+                    <SectionEditForm fields={SECTION_FIELDS.terminal_benefit.fields} data={s?.terminal_benefit || {}}
                       onSave={d => saveSection('terminal_benefit', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
                   ) : (
                     <button onClick={() => setEditingSection('terminal_benefit')} className="btn-ghost text-xs mt-1"><Pencil size={11} /> Edit</button>
@@ -897,17 +906,19 @@ export default function TaxCalculation() {
               )}
 
               {/* Rent Income */}
-              {s?.rent_income?.gross_amount > 0 && (
+              {(s?.rent_income?.gross_amount > 0 || canEdit) && (
                 <>
                   <SubHeading>Rent Income</SubHeading>
-                  <AmountRow label="Gross Rent" value={s.rent_income.gross_amount} />
-                  <AmountRow label="WHT Deducted" value={s.rent_income.wht_deducted} sub />
-                  <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border">
-                    <span className="text-sm text-brand-success">Rent Relief (25% auto)</span>
-                    <span className="font-mono text-sm text-brand-success">{formatCurrency(computedRentRelief)}</span>
-                  </div>
+                  {s?.rent_income?.gross_amount > 0 && <>
+                    <AmountRow label="Gross Rent" value={s.rent_income.gross_amount} />
+                    <AmountRow label="WHT Deducted" value={s.rent_income.wht_deducted} sub />
+                    <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border">
+                      <span className="text-sm text-brand-success">Rent Relief (25% auto)</span>
+                      <span className="font-mono text-sm text-brand-success">{formatCurrency(computedRentRelief)}</span>
+                    </div>
+                  </>}
                   {canEdit && (editingSection === 'rent_income' ? (
-                    <SectionEditForm fields={SECTION_FIELDS.rent_income.fields} data={s.rent_income}
+                    <SectionEditForm fields={SECTION_FIELDS.rent_income.fields} data={s?.rent_income || {}}
                       onSave={d => saveSection('rent_income', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
                   ) : (
                     <button onClick={() => setEditingSection('rent_income')} className="btn-ghost text-xs mt-1"><Pencil size={11} /> Edit</button>
@@ -916,13 +927,15 @@ export default function TaxCalculation() {
               )}
 
               {/* Interest Income */}
-              {s?.interest_income?.amount > 0 && (
+              {(s?.interest_income?.amount > 0 || canEdit) && (
                 <>
                   <SubHeading>Interest Income</SubHeading>
-                  <AmountRow label="Interest" value={s.interest_income.amount} />
-                  <AmountRow label="WHT Deducted" value={s.interest_income.wht_deducted} sub />
+                  {s?.interest_income?.amount > 0 && <>
+                    <AmountRow label="Interest" value={s.interest_income.amount} />
+                    <AmountRow label="WHT Deducted" value={s.interest_income.wht_deducted} sub />
+                  </>}
                   {canEdit && (editingSection === 'interest_income' ? (
-                    <SectionEditForm fields={SECTION_FIELDS.interest_income.fields} data={s.interest_income}
+                    <SectionEditForm fields={SECTION_FIELDS.interest_income.fields} data={s?.interest_income || {}}
                       onSave={d => saveSection('interest_income', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
                   ) : (
                     <button onClick={() => setEditingSection('interest_income')} className="btn-ghost text-xs mt-1"><Pencil size={11} /> Edit</button>
@@ -931,18 +944,20 @@ export default function TaxCalculation() {
               )}
 
               {/* Dividend Income */}
-              {(s?.dividend_income?.amount > 0 || s?.dividend_income?.exempt_amount > 0) && (
+              {(s?.dividend_income?.amount > 0 || s?.dividend_income?.exempt_amount > 0 || canEdit) && (
                 <>
                   <SubHeading>Dividend Income</SubHeading>
-                  <AmountRow label="Taxable Dividends" value={s.dividend_income.amount} />
-                  {parseFloat(s.dividend_income.exempt_amount || 0) > 0 && (
-                    <div className="flex justify-between items-center py-2 border-b border-brand-gray-border pl-4">
-                      <span className="text-sm text-brand-success">Exempt Dividends (15% WHT)</span>
-                      <span className="font-mono text-sm text-brand-success">{formatCurrency(s.dividend_income.exempt_amount)}</span>
-                    </div>
-                  )}
+                  {(s?.dividend_income?.amount > 0 || s?.dividend_income?.exempt_amount > 0) && <>
+                    <AmountRow label="Taxable Dividends" value={s.dividend_income.amount} />
+                    {parseFloat(s.dividend_income.exempt_amount || 0) > 0 && (
+                      <div className="flex justify-between items-center py-2 border-b border-brand-gray-border pl-4">
+                        <span className="text-sm text-brand-success">Exempt Dividends (15% WHT)</span>
+                        <span className="font-mono text-sm text-brand-success">{formatCurrency(s.dividend_income.exempt_amount)}</span>
+                      </div>
+                    )}
+                  </>}
                   {canEdit && (editingSection === 'dividend_income' ? (
-                    <SectionEditForm fields={SECTION_FIELDS.dividend_income.fields} data={s.dividend_income}
+                    <SectionEditForm fields={SECTION_FIELDS.dividend_income.fields} data={s?.dividend_income || {}}
                       onSave={d => saveSection('dividend_income', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
                   ) : (
                     <button onClick={() => setEditingSection('dividend_income')} className="btn-ghost text-xs mt-1"><Pencil size={11} /> Edit</button>
@@ -951,10 +966,10 @@ export default function TaxCalculation() {
               )}
 
               {/* Sole Proprietorship — multi-entry */}
-              {(s?.sole_proprietorships || []).length > 0 && (
+              {((s?.sole_proprietorships || []).length > 0 || canEdit) && (
                 <>
                   <SubHeading>Sole Proprietorship / Partnership</SubHeading>
-                  {(s.sole_proprietorships).map(sp => (
+                  {(s?.sole_proprietorships || []).map(sp => (
                     <div key={sp.id} className="mb-1">
                       <Row label="Business Name" value={sp.business_name} />
                       <AmountRow label="Business Income" value={sp.amount} />
@@ -967,13 +982,15 @@ export default function TaxCalculation() {
               )}
 
               {/* Other Income */}
-              {s?.other_income?.amount > 0 && (
+              {(s?.other_income?.amount > 0 || canEdit) && (
                 <>
                   <SubHeading>Other Income</SubHeading>
-                  <Row label="Description" value={s.other_income.description} />
-                  <AmountRow label="Amount" value={s.other_income.amount} />
+                  {s?.other_income?.amount > 0 && <>
+                    <Row label="Description" value={s.other_income.description} />
+                    <AmountRow label="Amount" value={s.other_income.amount} />
+                  </>}
                   {canEdit && (editingSection === 'other_income' ? (
-                    <SectionEditForm fields={SECTION_FIELDS.other_income.fields} data={s.other_income}
+                    <SectionEditForm fields={SECTION_FIELDS.other_income.fields} data={s?.other_income || {}}
                       onSave={d => saveSection('other_income', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
                   ) : (
                     <button onClick={() => setEditingSection('other_income')} className="btn-ghost text-xs mt-1"><Pencil size={11} /> Edit</button>
@@ -982,7 +999,7 @@ export default function TaxCalculation() {
               )}
 
               <div className="mt-2">
-                <AmountRow label="TOTAL ASSESSABLE INCOME" value={s?.total_assessable_income} highlight />
+                <AmountRow label="TOTAL ASSESSABLE INCOME" value={derivedCalc.total_assessable_income} highlight />
               </div>
             </Section>
 
@@ -1493,37 +1510,19 @@ export default function TaxCalculation() {
 
               <EditableAmount label="Gross Tax" value={derivedCalc.gross_tax} fieldKey="gross_tax" onSave={handleFieldUpdate} />
               <div className="h-px bg-brand-gray-border my-2" />
-              {/* Individual tax credit lines — shown above balance payable */}
+              {/* Tax credit lines — only from the Tax Credits section */}
               {parseFloat(s?.tax_credits?.apit_on_salary || 0) > 0 && (
                 <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
                   <span className="text-xs text-brand-gray">APIT on Salary</span>
                   <span className="text-xs font-mono text-white">({formatCurrency(s.tax_credits.apit_on_salary)})</span>
                 </div>
               )}
-              {parseFloat(s?.rent_income?.wht_deducted || 0) > 0 && (
+              {parseFloat(s?.tax_credits?.wht_rent_interest_service || 0) > 0 && (
                 <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
-                  <span className="text-xs text-brand-gray">WHT on Rent Income</span>
-                  <span className="text-xs font-mono text-white">({formatCurrency(s.rent_income.wht_deducted)})</span>
+                  <span className="text-xs text-brand-gray">WHT on Rent / Interest / Service</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency(s.tax_credits.wht_rent_interest_service)})</span>
                 </div>
               )}
-              {parseFloat(s?.interest_income?.wht_deducted || 0) > 0 && (
-                <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
-                  <span className="text-xs text-brand-gray">WHT on Interest Income</span>
-                  <span className="text-xs font-mono text-white">({formatCurrency(s.interest_income.wht_deducted)})</span>
-                </div>
-              )}
-              {(s?.sole_proprietorships || []).filter(sp => parseFloat(sp.wht_deducted || 0) > 0).map(sp => (
-                <div key={sp.id} className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
-                  <span className="text-xs text-brand-gray">WHT — {sp.business_name || 'Business Income'}</span>
-                  <span className="text-xs font-mono text-white">({formatCurrency(sp.wht_deducted)})</span>
-                </div>
-              ))}
-              {(s?.wht_certificates || []).map(cert => (
-                <div key={cert.id} className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
-                  <span className="text-xs text-brand-gray">WHT — {cert.category_display}</span>
-                  <span className="text-xs font-mono text-white">({formatCurrency(cert.amount)})</span>
-                </div>
-              ))}
               {(s?.self_assessment_payments || []).map(inst => (
                 <div key={inst.id} className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
                   <span className="text-xs text-brand-gray">Self Assessment — Inst. {inst.installment_number}</span>
