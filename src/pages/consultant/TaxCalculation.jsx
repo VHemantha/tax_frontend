@@ -260,7 +260,9 @@ const SECTION_FIELDS = {
     label: 'Foreign Income',
     fields: [
       { key: 'employment_service_fee', label: 'Employment / Service Fee (Rs.)', type: 'number' },
+      { key: 'foreign_business_income', label: 'Business Income (Rs.)', type: 'number' },
       { key: 'other_foreign_income', label: 'Other Foreign Income (Rs.)', type: 'number' },
+      { key: 'foreign_tax_paid', label: 'Foreign Tax Paid (Rs.)', type: 'number' },
       { key: 'notes', label: 'Notes', type: 'textarea' },
     ],
   },
@@ -621,7 +623,7 @@ export default function TaxCalculation() {
 
   const s = submission
   const canEdit = s?.status !== 'archived'
-  const canConfirm = ['submitted', 'under_review', 'info_requested'].includes(s?.status)
+  const canConfirm = ['submitted', 'under_review', 'info_requested', 'draft'].includes(s?.status)
   const canFinalSubmit = s?.status === 'confirmed'
   const paymentReceived = s?.payment_status === 'paid'
   const canArchive = s?.status === 'client_confirmed'
@@ -1391,37 +1393,58 @@ export default function TaxCalculation() {
               <EditableAmount label="Less: Rent Relief (25%)" value={derivedCalc.rent_relief} fieldKey="rent_relief" onSave={handleFieldUpdate} indent />
               <EditableAmount label="Taxable Income" value={derivedCalc.net_taxable_income} fieldKey="net_taxable_income" onSave={handleFieldUpdate} highlight />
 
-              {/* Foreign Income Tax — Flat 15% (shown after taxable income, before progressive tax) */}
+              {/* Foreign Income Tax — Flat 15% (always shown; editable) */}
               {(() => {
                 const fi = s?.foreign_income || {}
                 const fiAmt = parseFloat(fi.employment_service_fee || 0) +
                               parseFloat(fi.foreign_business_income || 0) +
                               parseFloat(fi.other_foreign_income || 0)
-                if (fiAmt <= 0) return null
                 const fiGross = fiAmt * 0.15
                 const fiPaid  = parseFloat(fi.foreign_tax_paid || 0)
                 const fiNet   = Math.max(0, fiGross - fiPaid)
+                const isEditing = editingSection === 'foreign_income'
                 return (
                   <div className="mt-3 bg-brand-black-soft border border-brand-gray-border rounded-xl p-3">
-                    <p className="text-xs text-brand-yellow font-semibold uppercase tracking-wider mb-2">Foreign Income Tax (Flat 15%)</p>
-                    <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50">
-                      <span className="text-xs text-brand-gray">Foreign Income</span>
-                      <span className="text-xs font-mono text-white">{formatCurrency(fiAmt)}</span>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-brand-yellow font-semibold uppercase tracking-wider">Foreign Income Tax (Flat 15%)</p>
+                      {canEdit && !isEditing && (
+                        <button onClick={() => setEditingSection('foreign_income')} className="text-brand-gray hover:text-brand-yellow" title="Edit foreign income">
+                          <Pencil size={11} />
+                        </button>
+                      )}
                     </div>
-                    <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50">
-                      <span className="text-xs text-brand-gray">Tax @ 15%</span>
-                      <span className="text-xs font-mono text-white">{formatCurrency(fiGross)}</span>
-                    </div>
-                    {fiPaid > 0 && (
-                      <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50 pl-3">
-                        <span className="text-xs text-brand-gray">Less: Foreign Tax Paid (cage 901)</span>
-                        <span className="text-xs font-mono text-white">({formatCurrency(fiPaid)})</span>
-                      </div>
+                    {isEditing ? (
+                      <SectionEditForm
+                        fields={SECTION_FIELDS.foreign_income.fields}
+                        data={s?.foreign_income || {}}
+                        onSave={d => saveSection('foreign_income', d)}
+                        onCancel={() => setEditingSection(null)}
+                        saving={sectionSaving}
+                      />
+                    ) : fiAmt <= 0 ? (
+                      <p className="text-xs text-brand-gray italic">No foreign income entered. Click pencil to add.</p>
+                    ) : (
+                      <>
+                        <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50">
+                          <span className="text-xs text-brand-gray">Foreign Income</span>
+                          <span className="text-xs font-mono text-white">{formatCurrency(fiAmt)}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50">
+                          <span className="text-xs text-brand-gray">Tax @ 15%</span>
+                          <span className="text-xs font-mono text-white">{formatCurrency(fiGross)}</span>
+                        </div>
+                        {fiPaid > 0 && (
+                          <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50 pl-3">
+                            <span className="text-xs text-brand-gray">Less: Foreign Tax Paid (cage 901)</span>
+                            <span className="text-xs font-mono text-white">({formatCurrency(fiPaid)})</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center pt-1.5">
+                          <span className="text-xs font-semibold text-white">Net Foreign Tax Payable</span>
+                          <span className="text-xs font-mono font-bold text-brand-yellow">{formatCurrency(fiNet)}</span>
+                        </div>
+                      </>
                     )}
-                    <div className="flex justify-between items-center pt-1.5">
-                      <span className="text-xs font-semibold text-white">Net Foreign Tax Payable</span>
-                      <span className="text-xs font-mono font-bold text-brand-yellow">{formatCurrency(fiNet)}</span>
-                    </div>
                   </div>
                 )
               })()}
@@ -1440,12 +1463,18 @@ export default function TaxCalculation() {
                       </tr>
                     </thead>
                     <tbody>
-                      {derivedCalc.slab_breakdown.map((row, i) => (
-                        <tr key={i} className="border-b border-brand-gray-border/50">
-                          <td className="py-1 text-brand-gray">{row.label}</td>
-                          <td className="py-1 text-right font-mono text-white">{formatCurrencyInt(row.tax)}</td>
-                        </tr>
-                      ))}
+                      {derivedCalc.slab_breakdown.map((row, i) => {
+                        const isBalance = row.label.startsWith('Balance')
+                        const displayLabel = isBalance
+                          ? `Balance Rs. ${Math.round(parseFloat(row.taxable_amount || 0)).toLocaleString('en-LK')} @ 36%`
+                          : row.label
+                        return (
+                          <tr key={i} className="border-b border-brand-gray-border/50">
+                            <td className="py-1 text-brand-gray">{displayLabel}</td>
+                            <td className="py-1 text-right font-mono text-white">{formatCurrencyInt(row.tax)}</td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
