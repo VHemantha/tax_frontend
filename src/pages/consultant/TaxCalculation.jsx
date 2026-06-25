@@ -1229,7 +1229,7 @@ export default function TaxCalculation() {
                   </>
                 )}
                 <div className="mt-2">
-                  <AmountRow label="Total Tax Credits" value={s?.total_tax_credits} highlight />
+                  <AmountRow label="Total Tax Credits" value={derivedCalc.total_tax_credits} highlight />
                 </div>
               </div>
             </Section>
@@ -1603,9 +1603,9 @@ export default function TaxCalculation() {
                   <span className="text-xs font-mono text-white">({formatCurrency(derivedCalc.wht_cert_total)})</span>
                 </div>
               )}
-              {(s?.self_assessment_payments || []).map(inst => (
+              {(s?.self_assessment_payments || []).filter(inst => parseFloat(inst.amount || 0) > 0).map(inst => (
                 <div key={inst.id} className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
-                  <span className="text-xs text-brand-gray">Self Assessment — Inst. {inst.installment_number}</span>
+                  <span className="text-xs text-brand-gray">Self-Assessment Installment {inst.installment_number}</span>
                   <span className="text-xs font-mono text-white">({formatCurrency(inst.amount)})</span>
                 </div>
               ))}
