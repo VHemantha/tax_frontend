@@ -659,8 +659,9 @@ export default function TaxCalculation() {
 
     // ── Tax credits ────────────────────────────────────────────────────────
     const apit        = parseFloat(sub.tax_credits?.apit_on_salary              || 0)
-    // Compute WHT total directly from certificates — avoids stale wht_rent_interest_service
-    const whtCerts    = (sub.wht_certificates || []).reduce((acc, c) => acc + parseFloat(c.amount || 0), 0)
+    // Sum live cert amounts; fall back to synced field if array is empty (e.g. first load)
+    const whtFromCerts  = (sub.wht_certificates || []).reduce((acc, c) => acc + parseFloat(c.amount || 0), 0)
+    const whtCerts      = whtFromCerts > 0 ? whtFromCerts : parseFloat(sub.tax_credits?.wht_rent_interest_service || 0)
     const partnership = parseFloat(sub.tax_credits?.partnership_tax_credit      || 0)
     const selfAssess  = (sub.self_assessment_payments || []).reduce((acc, p) => acc + parseFloat(p.amount || 0), 0)
     const computedCredits = apit + whtCerts + partnership + selfAssess
@@ -688,6 +689,7 @@ export default function TaxCalculation() {
       gross_tax:                 grossTax,
       slab_breakdown,
       wht_cert_total:            whtCerts,
+      self_assess_total:         selfAssess,
       total_tax_credits:         credits,
       foreign_income_tax:        foreignTax,
       net_tax_payable:           pu.net_tax_payable !== undefined
@@ -1199,7 +1201,7 @@ export default function TaxCalculation() {
                     {(s?.wht_certificates || []).length > 0 && (
                       <div className="flex justify-between items-center px-2 py-1 bg-brand-black rounded-lg mt-1">
                         <span className="text-xs font-semibold text-white">Total WHT</span>
-                        <span className="font-mono text-xs font-semibold text-white">{formatCurrency(s?.tax_credits?.wht_rent_interest_service || 0)}</span>
+                        <span className="font-mono text-xs font-semibold text-white">{formatCurrency(derivedCalc.wht_cert_total)}</span>
                       </div>
                     )}
                   </>
@@ -1226,6 +1228,12 @@ export default function TaxCalculation() {
                       }}
                       addLabel="Add Installment"
                     />
+                    {(s?.self_assessment_payments || []).length > 0 && (
+                      <div className="flex justify-between items-center px-2 py-1 bg-brand-black rounded-lg mt-1">
+                        <span className="text-xs font-semibold text-white">Total Self-Assessment</span>
+                        <span className="font-mono text-xs font-semibold text-white">{formatCurrency(derivedCalc.self_assess_total)}</span>
+                      </div>
+                    )}
                   </>
                 )}
                 <div className="mt-2">
