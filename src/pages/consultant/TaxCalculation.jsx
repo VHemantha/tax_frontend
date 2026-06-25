@@ -364,6 +364,16 @@ const SECTION_FIELDS = {
       { key: 'amount', label: 'Cash in Hand (Rs.)', type: 'number' },
     ],
   },
+  loans_given: {
+    endpoint: id => `/tax/submissions/${id}/assets/loans-given/`,
+    label: 'Loans Given & Receivable',
+    fields: [
+      { key: 'opening_balance',            label: 'Opening Balance (Rs.)',            type: 'number' },
+      { key: 'given_during_year',          label: 'Given During the Year (Rs.)',      type: 'number' },
+      { key: 'cash_received_from_debtors', label: 'Cash Received from Debtors (Rs.)', type: 'number' },
+      { key: 'amount',                     label: 'Balance as at 31.03 (Rs.)',         type: 'number' },
+    ],
+  },
   gold_jewellery: {
     endpoint: id => `/tax/submissions/${id}/assets/gold/`,
     label: 'Gold & Jewellery',
@@ -541,27 +551,41 @@ export default function TaxCalculation() {
 
   // Multi-row helpers
   async function patchRow(itemEndpointBase, rowId, data) {
-    await api.patch(`/tax/${itemEndpointBase}/${rowId}/`, data)
-    qc.invalidateQueries(['submission', submissionId])
-    qc.invalidateQueries(['live-calc', submissionId])
-    qc.invalidateQueries(['edit-logs', submissionId])
-    toast.success('Row updated')
+    try {
+      await api.patch(`/tax/${itemEndpointBase}/${rowId}/`, data)
+      qc.invalidateQueries(['submission', submissionId])
+      qc.invalidateQueries(['live-calc', submissionId])
+      qc.invalidateQueries(['edit-logs', submissionId])
+      toast.success('Row updated')
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Failed to update row')
+      throw e
+    }
   }
 
   async function deleteRow(itemEndpointBase, rowId) {
     if (!window.confirm('Delete this row?')) return
-    await api.delete(`/tax/${itemEndpointBase}/${rowId}/`)
-    qc.invalidateQueries(['submission', submissionId])
-    qc.invalidateQueries(['live-calc', submissionId])
-    qc.invalidateQueries(['edit-logs', submissionId])
-    toast.success('Row deleted')
+    try {
+      await api.delete(`/tax/${itemEndpointBase}/${rowId}/`)
+      qc.invalidateQueries(['submission', submissionId])
+      qc.invalidateQueries(['live-calc', submissionId])
+      qc.invalidateQueries(['edit-logs', submissionId])
+      toast.success('Row deleted')
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Failed to delete row')
+    }
   }
 
   async function addRow(listEndpoint, defaults) {
-    await api.post(`/tax/submissions/${submissionId}/${listEndpoint}`, defaults)
-    qc.invalidateQueries(['submission', submissionId])
-    qc.invalidateQueries(['live-calc', submissionId])
-    toast.success('Row added')
+    try {
+      await api.post(`/tax/submissions/${submissionId}/${listEndpoint}`, defaults)
+      qc.invalidateQueries(['submission', submissionId])
+      qc.invalidateQueries(['live-calc', submissionId])
+      qc.invalidateQueries(['edit-logs', submissionId])
+      toast.success('Row added')
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Failed to add row')
+    }
   }
 
   async function downloadPDF() {
@@ -1334,19 +1358,30 @@ export default function TaxCalculation() {
                   ))}
                 </div>
 
+                {/* Loans Given — single aggregate record (OneToOne) */}
                 <div>
-                  <SubHeading>Loans Given</SubHeading>
-                  <EditableDataTable
-                    columns={[
-                      { key: 'borrower_name', label: 'Borrower' },
-                      { key: 'amount', label: 'Amount', right: true, format: formatCurrency },
-                      { key: 'notes', label: 'Notes' },
-                    ]}
-                    rows={s?.loans_given} canEdit={canEdit} emptyMsg="No loans given"
-                    onEdit={(id, data) => patchRow('assets/loans-given', id, data)}
-                    onDelete={id => deleteRow('assets/loans-given', id)}
-                    onAdd={() => addRow('assets/loans-given/', { borrower_name: '', amount: 0 })}
-                  />
+                  <SubHeading>Loans Given &amp; Receivable</SubHeading>
+                  {s?.loans_given && (
+                    <div className="space-y-0.5 mb-1">
+                      <AmountRow label="Opening Balance"            value={s.loans_given.opening_balance} />
+                      <AmountRow label="Given During the Year"      value={s.loans_given.given_during_year} />
+                      <AmountRow label="Cash Received from Debtors" value={s.loans_given.cash_received_from_debtors} sub />
+                      <AmountRow label="Balance as at 31.03"        value={s.loans_given.amount} />
+                    </div>
+                  )}
+                  {canEdit && (editingSection === 'loans_given' ? (
+                    <SectionEditForm
+                      fields={SECTION_FIELDS.loans_given.fields}
+                      data={s?.loans_given || {}}
+                      onSave={d => saveSection('loans_given', d)}
+                      onCancel={() => setEditingSection(null)}
+                      saving={sectionSaving}
+                    />
+                  ) : (
+                    <button onClick={() => setEditingSection('loans_given')} className="btn-ghost text-xs mt-1">
+                      <Pencil size={11} /> Edit
+                    </button>
+                  ))}
                 </div>
 
                 <div>
