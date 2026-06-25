@@ -657,11 +657,12 @@ export default function TaxCalculation() {
     const { gross_tax: computedGross, slab_breakdown } = computeSlabTax(slabTaxable)
     const grossTax = pu.gross_tax !== undefined ? parseFloat(pu.gross_tax) || 0 : computedGross
 
-    // ── Tax credits (Tax Credits section only — no income-section WHT) ────
+    // ── Tax credits ────────────────────────────────────────────────────────
     const apit        = parseFloat(sub.tax_credits?.apit_on_salary              || 0)
-    const whtCerts    = parseFloat(sub.tax_credits?.wht_rent_interest_service   || 0)
+    // Compute WHT total directly from certificates — avoids stale wht_rent_interest_service
+    const whtCerts    = (sub.wht_certificates || []).reduce((acc, c) => acc + parseFloat(c.amount || 0), 0)
     const partnership = parseFloat(sub.tax_credits?.partnership_tax_credit      || 0)
-    const selfAssess  = (sub.self_assessment_payments || []).reduce((s, p) => s + parseFloat(p.amount || 0), 0)
+    const selfAssess  = (sub.self_assessment_payments || []).reduce((acc, p) => acc + parseFloat(p.amount || 0), 0)
     const computedCredits = apit + whtCerts + partnership + selfAssess
 
     const credits = pu.total_tax_credits !== undefined
@@ -686,6 +687,7 @@ export default function TaxCalculation() {
       net_taxable_income:        netTaxable,
       gross_tax:                 grossTax,
       slab_breakdown,
+      wht_cert_total:            whtCerts,
       total_tax_credits:         credits,
       foreign_income_tax:        foreignTax,
       net_tax_payable:           pu.net_tax_payable !== undefined
@@ -1216,7 +1218,12 @@ export default function TaxCalculation() {
                       rows={s?.self_assessment_payments} canEdit={canEdit}
                       onEdit={(id, data) => patchRow('self-assessment', id, data)}
                       onDelete={id => deleteRow('self-assessment', id)}
-                      onAdd={() => addRow('self-assessment/', { installment_number: 1, payment_date: '', amount: 0 })}
+                      onAdd={() => {
+                        const used = new Set((s?.self_assessment_payments || []).map(p => p.installment_number))
+                        const next = [1, 2, 3, 4].find(n => !used.has(n))
+                        if (!next) { toast.error('All 4 installments already added.'); return }
+                        addRow('self-assessment/', { installment_number: next, amount: 0 })
+                      }}
                       addLabel="Add Installment"
                     />
                   </>
@@ -1590,10 +1597,10 @@ export default function TaxCalculation() {
                   <span className="text-xs font-mono text-white">({formatCurrency(s.tax_credits.apit_on_salary)})</span>
                 </div>
               )}
-              {parseFloat(s?.tax_credits?.wht_rent_interest_service || 0) > 0 && (
+              {derivedCalc.wht_cert_total > 0 && (
                 <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
                   <span className="text-xs text-brand-gray">WHT on Rent / Interest / Service</span>
-                  <span className="text-xs font-mono text-white">({formatCurrency(s.tax_credits.wht_rent_interest_service)})</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency(derivedCalc.wht_cert_total)})</span>
                 </div>
               )}
               {(s?.self_assessment_payments || []).map(inst => (
