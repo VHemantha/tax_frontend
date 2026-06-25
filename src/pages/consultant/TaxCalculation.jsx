@@ -164,7 +164,7 @@ function SectionEditForm({ fields, data, onSave, onCancel, saving }) {
 }
 
 /* ─── Editable data table for multi-row sections ─── */
-function EditableDataTable({ columns, rows, emptyMsg = 'None entered', onEdit, onDelete, onAdd, addLabel = 'Add Row', canEdit }) {
+function EditableDataTable({ columns, rows, onEdit, onDelete, onAdd, addLabel = 'Add Row', canEdit }) {
   const [editingId, setEditingId] = useState(null)
   const [editDraft, setEditDraft] = useState({})
   const [saving, setSaving] = useState(false)
@@ -179,10 +179,10 @@ function EditableDataTable({ columns, rows, emptyMsg = 'None entered', onEdit, o
   }
 
   if (!rows || rows.length === 0) {
+    if (!canEdit) return null
     return (
       <div>
-        <p className="text-xs text-brand-gray py-3 text-center">{emptyMsg}</p>
-        {canEdit && <button onClick={onAdd} className="btn-ghost text-xs w-full mt-1"><Plus size={12} /> {addLabel}</button>}
+        <button onClick={onAdd} className="btn-ghost text-xs w-full mt-1"><Plus size={12} /> {addLabel}</button>
       </div>
     )
   }
@@ -209,6 +209,14 @@ function EditableDataTable({ columns, rows, emptyMsg = 'None entered', onEdit, o
                           onChange={e => setEditDraft(p => ({ ...p, [c.key]: e.target.value }))}
                           className="input-field py-1 text-xs w-full text-right font-mono"
                         />
+                      ) : c.options ? (
+                        <select
+                          value={editDraft[c.key] ?? ''}
+                          onChange={e => setEditDraft(p => ({ ...p, [c.key]: e.target.value }))}
+                          className="input-field py-1 text-xs w-full"
+                        >
+                          {c.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
                       ) : (
                         <input
                           type="text"
@@ -230,7 +238,7 @@ function EditableDataTable({ columns, rows, emptyMsg = 'None entered', onEdit, o
                 <tr key={row.id || i} className="table-row">
                   {columns.map(c => (
                     <td key={c.key} className={`table-cell py-2 text-xs ${c.right ? 'text-right font-mono' : ''}`}>
-                      {c.format ? c.format(row[c.key]) : (row[c.key] || '—')}
+                      {c.format ? c.format(row[c.key]) : (row[c.displayKey || c.key] || '—')}
                     </td>
                   ))}
                   {canEdit && (
@@ -338,6 +346,20 @@ const SECTION_FIELDS = {
       { key: 'wht_deducted', label: 'WHT Deducted (Rs.)', type: 'number' },
     ],
   },
+  rent_income_wht: {
+    endpoint: id => `/tax/submissions/${id}/income/rent/`,
+    label: 'WHT on Rent Income',
+    fields: [
+      { key: 'wht_deducted', label: 'WHT Deducted on Rent Income (Rs.)', type: 'number' },
+    ],
+  },
+  interest_income_wht: {
+    endpoint: id => `/tax/submissions/${id}/income/interest/`,
+    label: 'WHT on Interest Income',
+    fields: [
+      { key: 'wht_deducted', label: 'WHT Deducted on Interest Income (Rs.)', type: 'number' },
+    ],
+  },
   qualifying_payments: {
     endpoint: id => `/tax/submissions/${id}/qualifying-payments/`,
     label: 'Qualifying Payments',
@@ -410,8 +432,6 @@ export default function TaxCalculation() {
   const [archiveModal, setArchiveModal] = useState(false)
   const [archiveFile, setArchiveFile] = useState(null)
   const [archiveDesc, setArchiveDesc] = useState('')
-  const [whtAddOpen, setWhtAddOpen] = useState(false)
-  const [whtDraft, setWhtDraft] = useState({ category: 'rent', amount: '', notes: '' })
 
   const { data: submission, isLoading } = useQuery({
     queryKey: ['submission', submissionId],
@@ -480,27 +500,6 @@ export default function TaxCalculation() {
     onError: err => toast.error(err.response?.data?.error || 'Failed to archive'),
   })
 
-  const addWHTCert = useMutation({
-    mutationFn: (data) => api.post(`/tax/submissions/${submissionId}/wht-certificates/`, data),
-    onSuccess: () => {
-      toast.success('WHT entry added')
-      setWhtAddOpen(false)
-      setWhtDraft({ category: 'rent', amount: '', notes: '' })
-      qc.invalidateQueries(['submission', submissionId])
-      qc.invalidateQueries(['live-calc', submissionId])
-    },
-    onError: () => toast.error('Failed to add WHT entry'),
-  })
-
-  const deleteWHTCert = useMutation({
-    mutationFn: (certId) => api.delete(`/tax/wht-certificates/${certId}/`),
-    onSuccess: () => {
-      toast.success('WHT entry removed')
-      qc.invalidateQueries(['submission', submissionId])
-      qc.invalidateQueries(['live-calc', submissionId])
-    },
-    onError: () => toast.error('Failed to remove WHT entry'),
-  })
 
   function handleArchiveSubmit() {
     if (!archiveFile) {
@@ -1033,19 +1032,22 @@ export default function TaxCalculation() {
                 </>
               )}
 
-              {/* Sole Proprietorship — multi-entry */}
+              {/* Sole Proprietorship — multi-entry, editable */}
               {((s?.sole_proprietorships || []).length > 0 || canEdit) && (
                 <>
                   <SubHeading>Sole Proprietorship / Partnership</SubHeading>
-                  {(s?.sole_proprietorships || []).map(sp => (
-                    <div key={sp.id} className="mb-1">
-                      <Row label="Business Name" value={sp.business_name} />
-                      <AmountRow label="Business Income" value={sp.amount} />
-                      {parseFloat(sp.wht_deducted || 0) > 0 && (
-                        <AmountRow label="WHT Deducted" value={sp.wht_deducted} sub />
-                      )}
-                    </div>
-                  ))}
+                  <EditableDataTable
+                    columns={[
+                      { key: 'business_name', label: 'Business Name' },
+                      { key: 'amount', label: 'Business Income', right: true, format: formatCurrency },
+                      { key: 'wht_deducted', label: 'WHT Deducted', right: true, format: formatCurrency },
+                    ]}
+                    rows={s?.sole_proprietorships} canEdit={canEdit}
+                    onEdit={(id, data) => patchRow('income/sole-proprietorship', id, data)}
+                    onDelete={id => deleteRow('income/sole-proprietorship', id)}
+                    onAdd={() => addRow('income/sole-proprietorship/', { business_name: '', amount: 0, wht_deducted: 0 })}
+                    addLabel="Add Business"
+                  />
                 </>
               )}
 
@@ -1134,126 +1136,89 @@ export default function TaxCalculation() {
 
                 {/* ── WHT from Income Sources ── */}
                 {(() => {
-                  const spWHT = (s?.sole_proprietorships || []).reduce((sum, sp) => sum + parseFloat(sp.wht_deducted || 0), 0)
-                  const hasWHT = parseFloat(s?.rent_income?.wht_deducted || 0) > 0 || parseFloat(s?.interest_income?.wht_deducted || 0) > 0 || spWHT > 0
-                  return hasWHT ? (
+                  const rentWHT = parseFloat(s?.rent_income?.wht_deducted || 0)
+                  const intWHT  = parseFloat(s?.interest_income?.wht_deducted || 0)
+                  const spWHT   = (s?.sole_proprietorships || []).reduce((sum, sp) => sum + parseFloat(sp.wht_deducted || 0), 0)
+                  const hasWHT  = rentWHT > 0 || intWHT > 0 || spWHT > 0
+                  return (hasWHT || canEdit) ? (
                     <>
                       <SubHeading>WHT Deducted at Source</SubHeading>
-                      <AmountRow label="WHT on Rent Income" value={s?.rent_income?.wht_deducted} sub />
-                      <AmountRow label="WHT on Interest Income" value={s?.interest_income?.wht_deducted} sub />
-                      {spWHT > 0 && <AmountRow label="WHT on Business Income" value={spWHT} sub />}
+                      {(rentWHT > 0 || canEdit) && (
+                        <div>
+                          <AmountRow label="WHT on Rent Income" value={s?.rent_income?.wht_deducted} sub />
+                          {canEdit && (editingSection === 'rent_income_wht' ? (
+                            <SectionEditForm fields={SECTION_FIELDS.rent_income_wht.fields} data={s?.rent_income || {}}
+                              onSave={d => saveSection('rent_income_wht', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
+                          ) : (
+                            <button onClick={() => setEditingSection('rent_income_wht')} className="btn-ghost text-xs mt-1 ml-4"><Pencil size={11} /> Edit WHT</button>
+                          ))}
+                        </div>
+                      )}
+                      {(intWHT > 0 || canEdit) && (
+                        <div>
+                          <AmountRow label="WHT on Interest Income" value={s?.interest_income?.wht_deducted} sub />
+                          {canEdit && (editingSection === 'interest_income_wht' ? (
+                            <SectionEditForm fields={SECTION_FIELDS.interest_income_wht.fields} data={s?.interest_income || {}}
+                              onSave={d => saveSection('interest_income_wht', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
+                          ) : (
+                            <button onClick={() => setEditingSection('interest_income_wht')} className="btn-ghost text-xs mt-1 ml-4"><Pencil size={11} /> Edit WHT</button>
+                          ))}
+                        </div>
+                      )}
+                      {spWHT > 0 && <AmountRow label="WHT on Business Income (see Sole Prop. above)" value={spWHT} sub />}
                     </>
                   ) : null
                 })()}
 
                 {/* ── WHT Certificates ── */}
-                <SubHeading>WHT Credits by Income Category</SubHeading>
-                {(s?.wht_certificates || []).length > 0 ? (
-                  <div className="overflow-x-auto rounded-lg border border-brand-gray-border mb-2">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-brand-black">
-                          <th className="table-header py-2 text-left text-xs">Category</th>
-                          <th className="table-header py-2 text-right text-xs">Amount (Rs.)</th>
-                          {canEdit && <th className="table-header py-2 w-8" />}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(s.wht_certificates).map(cert => (
-                          <tr key={cert.id} className="table-row">
-                            <td className="table-cell py-2 text-xs">{cert.category_display}</td>
-                            <td className="table-cell py-2 text-right font-mono text-xs">{formatCurrency(cert.amount)}</td>
-                            {canEdit && (
-                              <td className="table-cell py-2 text-center">
-                                <button onClick={() => deleteWHTCert.mutate(cert.id)}
-                                  className="text-brand-gray hover:text-brand-red" title="Remove">
-                                  <Trash2 size={11} />
-                                </button>
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                        <tr className="bg-brand-black">
-                          <td className="table-cell py-2 text-xs font-semibold text-white">Total WHT</td>
-                          <td className="table-cell py-2 text-right font-mono text-xs font-semibold text-white">
-                            {formatCurrency(s.tax_credits?.wht_rent_interest_service || 0)}
-                          </td>
-                          {canEdit && <td />}
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="text-xs text-brand-gray text-center py-2">No WHT entries added</p>
+                {((s?.wht_certificates || []).length > 0 || canEdit) && (
+                  <>
+                    <SubHeading>WHT Credits by Income Category</SubHeading>
+                    <EditableDataTable
+                      columns={[
+                        { key: 'category', label: 'Category', displayKey: 'category_display',
+                          options: [
+                            { value: 'rent',         label: 'Rent' },
+                            { value: 'interest',     label: 'Interest' },
+                            { value: 'service_fees', label: 'Service Fees' },
+                            { value: 'employment',   label: 'Employment (APIT)' },
+                            { value: 'other',        label: 'Other' },
+                          ],
+                        },
+                        { key: 'amount', label: 'Amount (Rs.)', right: true, format: formatCurrency },
+                        { key: 'notes',  label: 'Notes' },
+                      ]}
+                      rows={s?.wht_certificates} canEdit={canEdit}
+                      onEdit={(id, data) => patchRow('wht-certificates', id, data)}
+                      onDelete={id => deleteRow('wht-certificates', id)}
+                      onAdd={() => addRow('wht-certificates/', { category: 'rent', amount: 0 })}
+                      addLabel="Add WHT Entry"
+                    />
+                    {(s?.wht_certificates || []).length > 0 && (
+                      <div className="flex justify-between items-center px-2 py-1 bg-brand-black rounded-lg mt-1">
+                        <span className="text-xs font-semibold text-white">Total WHT</span>
+                        <span className="font-mono text-xs font-semibold text-white">{formatCurrency(s?.tax_credits?.wht_rent_interest_service || 0)}</span>
+                      </div>
+                    )}
+                  </>
                 )}
 
-                {/* Add WHT entry form */}
-                {canEdit && !whtAddOpen && (
-                  <button onClick={() => setWhtAddOpen(true)} className="btn-ghost text-xs w-full mb-2">
-                    <Plus size={12} /> Add WHT Entry
-                  </button>
-                )}
-                {canEdit && whtAddOpen && (
-                  <div className="bg-brand-black-soft rounded-xl p-3 border border-brand-yellow/20 mb-2">
-                    <p className="text-xs text-brand-yellow font-semibold mb-2">New WHT Entry</p>
-                    <div className="grid grid-cols-1 gap-2 mb-3">
-                      <div>
-                        <label className="text-xs text-brand-gray mb-1 block">Income Category</label>
-                        <select
-                          value={whtDraft.category}
-                          onChange={e => setWhtDraft(p => ({ ...p, category: e.target.value }))}
-                          className="input-field text-sm"
-                        >
-                          <option value="rent">Rent</option>
-                          <option value="interest">Interest</option>
-                          <option value="service_fees">Service Fees</option>
-                          <option value="employment">Employment (APIT)</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs text-brand-gray mb-1 block">Amount (Rs.)</label>
-                        <input type="number" step="0.01" min="0"
-                          value={whtDraft.amount}
-                          onChange={e => setWhtDraft(p => ({ ...p, amount: e.target.value }))}
-                          className="input-field text-sm"
-                          placeholder="0.00"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-brand-gray mb-1 block">Notes (optional)</label>
-                        <input type="text"
-                          value={whtDraft.notes}
-                          onChange={e => setWhtDraft(p => ({ ...p, notes: e.target.value }))}
-                          className="input-field text-sm"
-                          placeholder="e.g. Bank certificate ref no."
-                        />
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => addWHTCert.mutate({ category: whtDraft.category, amount: whtDraft.amount, notes: whtDraft.notes })}
-                        disabled={!whtDraft.amount || addWHTCert.isPending}
-                        className="btn-primary text-xs py-1.5 px-3"
-                      >
-                        <Save size={12} /> {addWHTCert.isPending ? 'Saving…' : 'Add Entry'}
-                      </button>
-                      <button onClick={() => setWhtAddOpen(false)} className="btn-secondary text-xs py-1.5 px-3">Cancel</button>
-                    </div>
-                  </div>
-                )}
-
-                {s?.self_assessment_payments?.length > 0 && (
+                {/* ── Self-Assessment Installments ── */}
+                {((s?.self_assessment_payments || []).length > 0 || canEdit) && (
                   <>
                     <SubHeading>Self-Assessment Installments</SubHeading>
-                    {s.self_assessment_payments.map(inst => (
-                      <div key={inst.id} className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border last:border-0">
-                        <span className="text-sm text-brand-gray">
-                          Installment {inst.installment_number}{inst.payment_date ? ` (${formatDate(inst.payment_date)})` : ''}
-                        </span>
-                        <span className="font-mono text-sm text-white">{formatCurrency(inst.amount)}</span>
-                      </div>
-                    ))}
+                    <EditableDataTable
+                      columns={[
+                        { key: 'installment_number', label: 'Installment #' },
+                        { key: 'payment_date',       label: 'Payment Date' },
+                        { key: 'amount',             label: 'Amount (Rs.)', right: true, format: formatCurrency },
+                      ]}
+                      rows={s?.self_assessment_payments} canEdit={canEdit}
+                      onEdit={(id, data) => patchRow('self-assessment', id, data)}
+                      onDelete={id => deleteRow('self-assessment', id)}
+                      onAdd={() => addRow('self-assessment/', { installment_number: 1, payment_date: '', amount: 0 })}
+                      addLabel="Add Installment"
+                    />
                   </>
                 )}
                 <div className="mt-2">
@@ -1266,6 +1231,7 @@ export default function TaxCalculation() {
             <Section title="Statement of Assets" icon={Home} badge={totalAssets}>
               <div className="pt-2 space-y-4">
 
+                {((s?.immovable_properties || []).length > 0 || canEdit) && (
                 <div>
                   <SubHeading>Immovable Properties</SubHeading>
                   <EditableDataTable
@@ -1275,13 +1241,15 @@ export default function TaxCalculation() {
                       { key: 'cost', label: 'Cost', right: true, format: formatCurrency },
                       { key: 'market_value', label: 'Market Value', right: true, format: formatCurrency },
                     ]}
-                    rows={s?.immovable_properties} canEdit={canEdit} emptyMsg="No immovable properties"
+                    rows={s?.immovable_properties} canEdit={canEdit}
                     onEdit={(id, data) => patchRow('assets/immovable', id, data)}
                     onDelete={id => deleteRow('assets/immovable', id)}
                     onAdd={() => addRow('assets/immovable/', { situation_of_property: '', cost: 0, market_value: 0 })}
                   />
                 </div>
+                )}
 
+                {((s?.motor_vehicles || []).length > 0 || canEdit) && (
                 <div>
                   <SubHeading>Motor Vehicles</SubHeading>
                   <EditableDataTable
@@ -1291,13 +1259,15 @@ export default function TaxCalculation() {
                       { key: 'date_of_acquisition', label: 'Acquired' },
                       { key: 'cost_market_value', label: 'Cost / Value', right: true, format: formatCurrency },
                     ]}
-                    rows={s?.motor_vehicles} canEdit={canEdit} emptyMsg="No motor vehicles"
+                    rows={s?.motor_vehicles} canEdit={canEdit}
                     onEdit={(id, data) => patchRow('assets/vehicles', id, data)}
                     onDelete={id => deleteRow('assets/vehicles', id)}
                     onAdd={() => addRow('assets/vehicles/', { description: '', registration_no: '', cost_market_value: 0 })}
                   />
                 </div>
+                )}
 
+                {((s?.bank_balances || []).length > 0 || canEdit) && (
                 <div>
                   <SubHeading>Bank Balances</SubHeading>
                   <EditableDataTable
@@ -1308,13 +1278,15 @@ export default function TaxCalculation() {
                       { key: 'interest', label: 'Interest', right: true, format: formatCurrency },
                       { key: 'balance', label: 'Balance', right: true, format: formatCurrency },
                     ]}
-                    rows={s?.bank_balances} canEdit={canEdit} emptyMsg="No bank balances"
+                    rows={s?.bank_balances} canEdit={canEdit}
                     onEdit={(id, data) => patchRow('assets/bank-balances', id, data)}
                     onDelete={id => deleteRow('assets/bank-balances', id)}
                     onAdd={() => addRow('assets/bank-balances/', { bank_name: '', account_no: '', balance: 0 })}
                   />
                 </div>
+                )}
 
+                {((s?.shares_stocks || []).length > 0 || canEdit) && (
                 <div>
                   <SubHeading>Shares &amp; Stocks</SubHeading>
                   <EditableDataTable
@@ -1324,12 +1296,13 @@ export default function TaxCalculation() {
                       { key: 'cost_market_value', label: 'Cost / Value', right: true, format: formatCurrency },
                       { key: 'net_dividend_income', label: 'Net Dividend', right: true, format: formatCurrency },
                     ]}
-                    rows={s?.shares_stocks} canEdit={canEdit} emptyMsg="No shares or stocks"
+                    rows={s?.shares_stocks} canEdit={canEdit}
                     onEdit={(id, data) => patchRow('assets/shares', id, data)}
                     onDelete={id => deleteRow('assets/shares', id)}
                     onAdd={() => addRow('assets/shares/', { description: '', no_of_shares: 0, cost_market_value: 0 })}
                   />
                 </div>
+                )}
 
                 {/* Cash in Hand */}
                 <div>
@@ -1384,6 +1357,7 @@ export default function TaxCalculation() {
                   ))}
                 </div>
 
+                {((s?.business_properties || []).length > 0 || canEdit) && (
                 <div>
                   <SubHeading>Business Property</SubHeading>
                   <EditableDataTable
@@ -1392,13 +1366,15 @@ export default function TaxCalculation() {
                       { key: 'current_account_balance', label: 'Current A/C', right: true, format: formatCurrency },
                       { key: 'capital_account_balance', label: 'Capital A/C', right: true, format: formatCurrency },
                     ]}
-                    rows={s?.business_properties} canEdit={canEdit} emptyMsg="No business property"
+                    rows={s?.business_properties} canEdit={canEdit}
                     onEdit={(id, data) => patchRow('assets/business', id, data)}
                     onDelete={id => deleteRow('assets/business', id)}
                     onAdd={() => addRow('assets/business/', { name_of_business: '', current_account_balance: 0 })}
                   />
                 </div>
+                )}
 
+                {((s?.other_assets || []).length > 0 || canEdit) && (
                 <div>
                   <SubHeading>Other Assets</SubHeading>
                   <EditableDataTable
@@ -1408,14 +1384,15 @@ export default function TaxCalculation() {
                       { key: 'date_of_acquisition', label: 'Acquired' },
                       { key: 'cost_value', label: 'Cost / Value', right: true, format: formatCurrency },
                     ]}
-                    rows={s?.other_assets} canEdit={canEdit} emptyMsg="No other assets"
+                    rows={s?.other_assets} canEdit={canEdit}
                     onEdit={(id, data) => patchRow('assets/other', id, data)}
                     onDelete={id => deleteRow('assets/other', id)}
                     onAdd={() => addRow('assets/other/', { description: '', cost_value: 0 })}
                   />
                 </div>
+                )}
 
-                {(s?.disposals?.length > 0 || canEdit) && (
+                {((s?.disposals || []).length > 0 || canEdit) && (
                   <div>
                     <SubHeading>Disposals During the Year</SubHeading>
                     <EditableDataTable
@@ -1425,7 +1402,7 @@ export default function TaxCalculation() {
                         { key: 'sales_proceed', label: 'Proceeds', right: true, format: formatCurrency },
                         { key: 'cost', label: 'Cost', right: true, format: formatCurrency },
                       ]}
-                      rows={s?.disposals} canEdit={canEdit} emptyMsg="No disposals"
+                      rows={s?.disposals} canEdit={canEdit}
                       onEdit={(id, data) => patchRow('assets/disposals', id, data)}
                       onDelete={id => deleteRow('assets/disposals', id)}
                       onAdd={() => addRow('assets/disposals/', { description: '', sales_proceed: 0, cost: 0 })}
@@ -1446,7 +1423,7 @@ export default function TaxCalculation() {
                     { key: 'amount_as_at_date', label: 'Balance 31.03', right: true, format: formatCurrency },
                     { key: 'amount_repaid_during_year', label: 'Repaid', right: true, format: formatCurrency },
                   ]}
-                  rows={s?.liabilities} canEdit={canEdit} emptyMsg="No liabilities"
+                  rows={s?.liabilities} canEdit={canEdit}
                   onEdit={(id, data) => patchRow('liabilities', id, data)}
                   onDelete={id => deleteRow('liabilities', id)}
                   onAdd={() => addRow('liabilities/', { description: '', original_amount: 0, amount_as_at_date: 0 })}
