@@ -540,10 +540,6 @@ export default function IncomeSection({ submissionId, documents, onUpload, onDel
               <FieldRow label="Partnership Tax Credit" hint="Tax credit passed through from partnership">
                 <AmountInput name="partnership_tax_credit" control={controlTC} disabled={isReadOnly} />
               </FieldRow>
-              <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <FileUpload label="T10 Certificate (APIT)" documentType="t10_certificate" section="tax_credits" {...fp} />
-                <FileUpload label="WHT Certificate" documentType="wht_certificate" section="tax_credits" {...fp} />
-              </div>
             </SubSection>
 
           </div>

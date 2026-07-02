@@ -240,7 +240,7 @@ export default function ClientConfirmation() {
     const hasAssets = (
       s.immovable_properties?.length || s.motor_vehicles?.length ||
       s.bank_balances?.length || s.shares_stocks?.length ||
-      num(s.cash_in_hand?.amount) > 0 || s.loans_given?.length ||
+      num(s.cash_in_hand?.amount) > 0 || !!s.loans_given ||
       num(s.gold_jewellery?.value) > 0 || s.business_properties?.length ||
       s.other_assets?.length || s.disposals?.length
     )
@@ -456,13 +456,15 @@ export default function ClientConfirmation() {
               </div>
             )}
 
-            <Section title="Loans Given" icon={Landmark} count={s.loans_given?.length}>
-              {s.loans_given?.map((l, i) => (
-                <AssetCard key={i}>
-                  <KVRow label="Borrower" value={l.borrower_name} />
-                  <KVRow label="Amount"   value={formatCurrency(l.amount)} />
+            <Section title="Loans Given" icon={Landmark} count={s.loans_given ? 1 : 0}>
+              {s.loans_given && (
+                <AssetCard>
+                  <KVRow label="Opening Balance"           value={formatCurrency(s.loans_given.opening_balance)} />
+                  <KVRow label="Given During Year"         value={formatCurrency(s.loans_given.given_during_year)} />
+                  <KVRow label="Received from Debtors"     value={formatCurrency(s.loans_given.cash_received_from_debtors)} />
+                  <KVRow label="Closing Balance"           value={formatCurrency(s.loans_given.amount)} />
                 </AssetCard>
-              ))}
+              )}
             </Section>
 
             {num(s.gold_jewellery?.value) > 0 && (

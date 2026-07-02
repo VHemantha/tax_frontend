@@ -212,7 +212,7 @@ export default function RegisterClient() {
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <Field name="tin" label="TIN (Taxpayer Identification Number)" registerProps={{}} />
+          <Field name="tin" label="TIN (Taxpayer Identification Number)" required registerProps={{ required: 'TIN is required', validate: v => v.trim() !== '' || 'TIN is required' }} error={errors.tin} />
           <Field name="pin" label="PIN" registerProps={{}} />
           <Field name="nic_passport" label="NIC / Passport Number" registerProps={{}} />
           <Field name="telephone" label="Telephone Number" registerProps={{}} />

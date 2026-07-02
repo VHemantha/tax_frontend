@@ -8,7 +8,7 @@ import PageHeader from '../../components/common/PageHeader'
 import Modal from '../../components/common/Modal'
 import {
   ArrowLeft, Calculator, MessageSquare, FileText, Download,
-  CheckCircle, Eye, Send, Archive, Calendar, Plus, X
+  CheckCircle, Eye, Send, Archive, Calendar, Plus, X, Pencil, Save
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -22,6 +22,9 @@ export default function ClientDetail() {
   const [infoMessage, setInfoMessage] = useState('')
   const [assignYearsModal, setAssignYearsModal] = useState(false)
   const [selectedYears, setSelectedYears] = useState([])
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [editDraft, setEditDraft] = useState({})
+  const [editSaving, setEditSaving] = useState(false)
 
   const { data: client } = useQuery({
     queryKey: ['client', clientId],
@@ -102,6 +105,38 @@ export default function ClientDetail() {
     onError: () => toast.error('Failed to assign years'),
   })
 
+  function openEditProfile() {
+    setEditDraft({
+      full_name: client?.full_name || '',
+      tin: client?.tin || '',
+      pin: client?.pin || '',
+      nic_passport: client?.nic_passport || '',
+      telephone: client?.telephone || '',
+      mobile: client?.mobile || '',
+      address: client?.address || '',
+    })
+    setEditingProfile(true)
+  }
+
+  async function saveProfile() {
+    if (!editDraft.full_name?.trim()) {
+      toast.error('Full name is required')
+      return
+    }
+    setEditSaving(true)
+    try {
+      await api.patch(`/clients/${clientId}/`, editDraft)
+      toast.success('Client profile updated')
+      qc.invalidateQueries(['client', clientId])
+      setEditingProfile(false)
+    } catch (err) {
+      const errs = err.response?.data
+      if (errs) Object.values(errs).flat().forEach(msg => toast.error(msg))
+      else toast.error('Failed to save changes')
+    }
+    setEditSaving(false)
+  }
+
   async function downloadPDF(submissionId) {
     try {
       const response = await api.get(`/tax/submissions/${submissionId}/pdf/`, { responseType: 'blob' })
@@ -145,25 +180,83 @@ export default function ClientDetail() {
         <div className="space-y-4">
           {/* Profile card */}
           <div className="card">
-            <h3 className="section-header">Client Profile</h3>
-            <div className="space-y-3">
-              {[
-                ['Status', <StatusBadge status={client?.status} />],
-                ['TIN', client?.tin || '—'],
-                ['PIN', client?.pin || '—'],
-                ['NIC/Passport', client?.nic_passport || '—'],
-                ['Telephone', client?.telephone || '—'],
-                ['Mobile', client?.mobile || '—'],
-                ['Registered', formatDateTime(client?.created_at)],
-              ].map(([label, value]) => (
-                <div key={label} className="flex justify-between items-start">
-                  <span className="text-xs text-brand-gray">{label}</span>
-                  <span className="text-sm text-white font-medium text-right max-w-[60%]">
-                    {typeof value === 'string' ? value : value}
-                  </span>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="section-header mb-0">Client Profile</h3>
+              {!editingProfile && (
+                <button onClick={openEditProfile} className="btn-ghost text-xs px-2.5 py-1.5">
+                  <Pencil size={12} /> Edit
+                </button>
+              )}
             </div>
+
+            {editingProfile ? (
+              <div className="space-y-3">
+                {[
+                  ['full_name', 'Full Name', 'text', true],
+                  ['tin', 'TIN', 'text', false],
+                  ['pin', 'PIN', 'text', false],
+                  ['nic_passport', 'NIC / Passport', 'text', false],
+                  ['telephone', 'Telephone', 'text', false],
+                  ['mobile', 'Mobile', 'text', false],
+                ].map(([key, label, type, required]) => (
+                  <div key={key}>
+                    <label className="text-xs text-brand-gray block mb-1">
+                      {label}{required && <span className="text-brand-red ml-0.5">*</span>}
+                    </label>
+                    <input
+                      type={type}
+                      value={editDraft[key] || ''}
+                      onChange={e => setEditDraft(d => ({ ...d, [key]: e.target.value }))}
+                      className="input-field text-sm py-1.5"
+                    />
+                  </div>
+                ))}
+                <div>
+                  <label className="text-xs text-brand-gray block mb-1">Address</label>
+                  <textarea
+                    value={editDraft.address || ''}
+                    onChange={e => setEditDraft(d => ({ ...d, address: e.target.value }))}
+                    rows={2}
+                    className="input-field text-sm py-1.5 resize-none"
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={saveProfile}
+                    disabled={editSaving}
+                    className="btn-primary text-xs flex-1"
+                  >
+                    <Save size={12} /> {editSaving ? 'Saving…' : 'Save Changes'}
+                  </button>
+                  <button
+                    onClick={() => setEditingProfile(false)}
+                    className="btn-secondary text-xs"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {[
+                  ['Status', <StatusBadge status={client?.status} />],
+                  ['TIN', client?.tin || '—'],
+                  ['PIN', client?.pin || '—'],
+                  ['NIC/Passport', client?.nic_passport || '—'],
+                  ['Telephone', client?.telephone || '—'],
+                  ['Mobile', client?.mobile || '—'],
+                  ['Address', client?.address || '—'],
+                  ['Registered', formatDateTime(client?.created_at)],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between items-start">
+                    <span className="text-xs text-brand-gray">{label}</span>
+                    <span className="text-sm text-white font-medium text-right max-w-[60%] break-words">
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Assessment Years card */}
