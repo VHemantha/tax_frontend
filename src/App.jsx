@@ -31,6 +31,7 @@ import SuperAdminLayout from './components/layout/SuperAdminLayout'
 import SuperAdminDashboard from './pages/superadmin/Dashboard'
 import SuperAdminClientList from './pages/superadmin/ClientList'
 import ConsultantManagement from './pages/superadmin/ConsultantManagement'
+import AccountsManagement from './pages/superadmin/AccountsManagement'
 
 export default function App() {
   return (
@@ -78,6 +79,7 @@ export default function App() {
               <Route path="/super-admin/clients" element={<SuperAdminClientList />} />
               <Route path="/super-admin/clients/register" element={<RegisterClient />} />
               <Route path="/super-admin/consultants" element={<ConsultantManagement />} />
+              <Route path="/super-admin/accounts" element={<AccountsManagement />} />
             </Route>
           </Route>
 

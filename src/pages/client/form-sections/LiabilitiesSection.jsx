@@ -104,9 +104,15 @@ export default function LiabilitiesSection({ submissionId, submission, documents
           <CreditCard size={18} className="text-brand-yellow" />
           Liabilities as at 31st March 2026
         </h3>
-        <p className="text-sm text-brand-gray mb-5">
+        <p className="text-sm text-brand-gray mb-3">
           Bank loans, leasing, credit card balances, and all other outstanding liabilities.
         </p>
+        <div className="mb-5 px-3 py-2.5 bg-brand-yellow/5 border border-brand-yellow/20 rounded-lg">
+          <p className="text-xs text-brand-gray">
+            <span className="text-brand-yellow font-semibold">Note: </span>
+            Please enter the total outstanding balance, including both the principal (capital) amount and the accumulated interest.
+          </p>
+        </div>
 
         {/* Toolbar */}
         <div className="flex justify-end mb-4">

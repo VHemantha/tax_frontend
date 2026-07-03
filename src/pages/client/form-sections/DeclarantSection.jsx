@@ -15,13 +15,21 @@ export default function DeclarantSection({ submissionId, isReadOnly, onNext, onP
     queryFn: () => api.get(`/tax/submissions/${submissionId}/declarant/`).then(r => r.data),
   })
 
+  const { data: clientProfile } = useQuery({
+    queryKey: ['my-profile'],
+    queryFn: () => api.get('/clients/my-profile/').then(r => r.data),
+    enabled: !isReadOnly,
+  })
+
   const { register, handleSubmit, reset, formState: { errors } } = useForm()
 
   useEffect(() => {
-    if (existing && existing.id) {
-      reset(existing)
-    }
-  }, [existing])
+    if (!existing) return
+    reset({
+      ...existing,
+      mobile: existing.mobile || clientProfile?.mobile || '',
+    })
+  }, [existing, clientProfile])
 
   async function onSubmit(data) {
     setSaving(true)

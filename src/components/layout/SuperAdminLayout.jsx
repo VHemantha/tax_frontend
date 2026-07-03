@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, Users, UserPlus, LogOut, Menu,
-  ChevronRight, User, ShieldCheck, UserCog
+  ChevronRight, User, ShieldCheck, UserCog, Banknote
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 import clsx from 'clsx'
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { path: '/super-admin/clients',          icon: Users,           label: 'All Clients',      exact: true },
   { path: '/super-admin/clients/register', icon: UserPlus,        label: 'Register Client',  exact: true },
   { path: '/super-admin/consultants',      icon: UserCog,         label: 'Consultants',      exact: true },
+  { path: '/super-admin/accounts',         icon: Banknote,        label: 'Accounts Division', exact: true },
 ]
 
 export default function SuperAdminLayout() {
