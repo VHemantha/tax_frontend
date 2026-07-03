@@ -5,11 +5,12 @@ import PageHeader from '../../components/common/PageHeader'
 import {
   CheckCircle, Banknote, Phone, Mail, ArrowLeft, Clock,
   FileText, TrendingUp, Home, Car, Landmark, PieChart,
-  Wallet, Package, Building2, AlertTriangle, ChevronDown, ChevronRight, Download
+  Wallet, Package, Building2, AlertTriangle, ChevronDown, ChevronRight, Download,
+  Upload, Paperclip, X
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '../../utils/format'
 import toast from 'react-hot-toast'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 /* ── Collapsible section ── */
 function Section({ title, icon: Icon, children, count }) {
@@ -57,14 +58,34 @@ export default function ClientConfirmation() {
   const { submissionId } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const [bankSlip, setBankSlip] = useState(null)
+  const fileInputRef = useRef()
 
   const { data: submission, isLoading } = useQuery({
     queryKey: ['submission', submissionId],
     queryFn: () => api.get(`/tax/submissions/${submissionId}/`).then(r => r.data),
   })
 
+  function handleSlipFile(e) {
+    const f = e.target.files[0]
+    if (!f) return
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+    if (!allowed.includes(f.type)) { toast.error('Only PDF, JPG, PNG or WEBP files are accepted.'); return }
+    if (f.size > 10 * 1024 * 1024) { toast.error('File must be under 10 MB.'); return }
+    setBankSlip(f)
+  }
+
   const acknowledgeMutation = useMutation({
-    mutationFn: () => api.post(`/tax/submissions/${submissionId}/client-confirm/`),
+    mutationFn: () => {
+      if (bankSlip) {
+        const form = new FormData()
+        form.append('payment_slip', bankSlip)
+        return api.post(`/tax/submissions/${submissionId}/client-confirm/`, form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+      }
+      return api.post(`/tax/submissions/${submissionId}/client-confirm/`)
+    },
     onSuccess: () => {
       toast.success('Acknowledged. Accounts Division will confirm your payment shortly.')
       qc.invalidateQueries(['my-submissions'])
@@ -155,7 +176,59 @@ export default function ClientConfirmation() {
           )}
         </div>
 
+        {/* Bank Transfer Details */}
+        <div className="card mb-6 border-brand-yellow/20">
+          <div className="flex items-center gap-2 mb-3">
+            <Landmark size={15} className="text-brand-yellow" />
+            <p className="text-sm font-semibold text-white">Bank Transfer Details</p>
+          </div>
+          <p className="text-xs text-brand-gray mb-3">Please use the following bank account to make your payment:</p>
+          <div className="bg-brand-black rounded-xl p-4 space-y-0">
+            {[
+              ['Account Name',   'DPR CONSULTANTS (PVT) LTD'],
+              ['Account Number', '055010077041'],
+              ['Bank',           'HNB'],
+              ['Branch',         'Borella'],
+            ].map(([label, value]) => (
+              <div key={label} className="flex justify-between items-center py-2 border-b border-brand-gray-border/40 last:border-0">
+                <span className="text-xs text-brand-gray">{label}</span>
+                <span className="text-sm font-semibold text-white font-mono">{value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="card">
+          {/* Bank slip upload */}
+          <div className="mb-5">
+            <p className="text-xs text-brand-gray uppercase tracking-wider mb-2">
+              Attach Bank Payment Slip <span className="normal-case">(PDF / Image — optional)</span>
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.webp"
+              className="hidden"
+              onChange={handleSlipFile}
+            />
+            {bankSlip ? (
+              <div className="flex items-center gap-2 bg-brand-black rounded-lg px-3 py-2 border border-brand-yellow/30">
+                <Paperclip size={14} className="text-brand-yellow flex-shrink-0" />
+                <span className="text-xs text-white truncate flex-1">{bankSlip.name}</span>
+                <button onClick={() => setBankSlip(null)} className="text-brand-gray hover:text-white">
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => fileInputRef.current.click()}
+                className="w-full border border-dashed border-brand-gray-border rounded-lg px-4 py-3 text-xs text-brand-gray hover:border-brand-yellow/40 hover:text-brand-yellow transition-colors flex items-center justify-center gap-2"
+              >
+                <Upload size={14} /> Click to attach bank payment slip
+              </button>
+            )}
+          </div>
+
           <p className="text-sm text-brand-gray mb-4">
             Click below to acknowledge that you have received this payment notice. This does not complete your submission — payment confirmation by Accounts Division is still required.
           </p>
