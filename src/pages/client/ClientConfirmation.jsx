@@ -290,7 +290,7 @@ export default function ClientConfirmation() {
       const openOD  = (cf.opening_overdraft_banks  || []).reduce((a, b) => a + num(b.amount), 0)
       cfOpeningTotal = num(cf.opening_cash_in_hand) + openFav - openOD
       cfTotalReceipts = [
-        cf.receipt_employment_income, cf.receipt_interest_fds, cf.receipt_interest_savings,
+        cf.receipt_employment_income, cf.receipt_interest_savings,
         cf.receipt_rent_income, cf.receipt_tb_securities, cf.receipt_sale_shares,
         cf.receipt_dividend_income, cf.receipt_drawings_sole_partner, cf.receipt_bank_loan,
         cf.receipt_other_loans, cf.receipt_sale_land_building, cf.receipt_sale_motor_vehicle,
@@ -642,7 +642,6 @@ export default function ClientConfirmation() {
                   Receipts During the Year
                 </p>
                 <CfLineRow label="Employment Income"                    value={cf.receipt_employment_income} />
-                <CfLineRow label="Interest on Fixed Deposits"           value={cf.receipt_interest_fds} />
                 <CfLineRow label="Interest on Savings Accounts"         value={cf.receipt_interest_savings} />
                 <CfLineRow label="Rent Income"                          value={cf.receipt_rent_income} />
                 <CfLineRow label="Income — T/B &amp; Securities"        value={cf.receipt_tb_securities} />

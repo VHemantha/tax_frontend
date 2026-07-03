@@ -214,7 +214,6 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
     opening_favourable_banks: [],
     opening_overdraft_banks: [],
     receipt_employment_income: '',
-    receipt_interest_fds: '',
     receipt_interest_savings: '',
     receipt_rent_income: '',
     receipt_tb_securities: '',
@@ -287,7 +286,7 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
   const otherPaymentsTotal = (form.payment_other_items  || []).reduce((s, r) => s + D(r.amount), 0)
 
   const totalReceipts =
-    D(form.receipt_employment_income) + D(form.receipt_interest_fds) +
+    D(form.receipt_employment_income) +
     D(form.receipt_interest_savings) + D(form.receipt_rent_income) +
     D(form.receipt_tb_securities) + D(form.receipt_sale_shares) +
     D(form.receipt_dividend_income) + D(form.receipt_drawings_sole_partner) +
@@ -379,7 +378,6 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
 
         {[
           ['receipt_employment_income',     'Employment Income',                           false],
-          ['receipt_interest_fds',          'Interest Income on Fixed Deposits',           false],
           ['receipt_interest_savings',      'Interest Income on Savings Accounts',         false],
           ['receipt_rent_income',           'Rent Income',                                 false],
           ['receipt_tb_securities',         'Income on Sale of T/B and Securities',        false],
