@@ -698,7 +698,7 @@ export default function TaxCalculation() {
 
     // ── Progressive slab tax — local fills slabs first; foreign fills the rest,
     // capped at 15% ─────────────────────────────────────────────────────────
-    const { localTax: computedGross, foreignTax: computedForeignGross, localBreakdown: slab_breakdown, foreignBreakdown: foreign_slab_breakdown } =
+    const { localTax: computedGross, foreignTax: computedForeignGross, localBreakdown: slab_breakdown } =
       calculateMixedTax(taxableLocal, taxableForeign)
     const grossTax = pu.gross_tax !== undefined ? parseFloat(pu.gross_tax) || 0 : computedGross
 
@@ -733,7 +733,6 @@ export default function TaxCalculation() {
       net_taxable_income:        netTaxable,
       gross_tax:                 grossTax,
       slab_breakdown,
-      foreign_slab_breakdown,
       taxable_foreign:           taxableForeign,
       foreign_tax_gross:         computedForeignGross,
       wht_cert_total:            whtCerts,
@@ -1598,16 +1597,12 @@ export default function TaxCalculation() {
                           <span className="text-xs text-brand-gray">Taxable Foreign Income (after relief)</span>
                           <span className="text-xs font-mono text-white">{formatCurrency(fiTaxable)}</span>
                         </div>
-                        {derivedCalc.foreign_slab_breakdown.map((row, i) => {
-                          const amt = Math.round(parseFloat(row.taxable_amount || 0))
-                          const pct = Math.round(parseFloat(row.rate) * 100)
-                          return (
-                            <div key={i} className="flex justify-between items-center py-1 border-b border-brand-gray-border/50 pl-3">
-                              <span className="text-xs text-brand-gray">Rs. {amt.toLocaleString('en-LK')} @ {pct}%</span>
-                              <span className="text-xs font-mono text-white">{formatCurrency(row.tax)}</span>
-                            </div>
-                          )
-                        })}
+                        <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50">
+                          <span className="text-xs text-brand-gray">Effective Tax Rate</span>
+                          <span className="text-xs font-mono text-white">
+                            {fiTaxable > 0 ? `${(fiGross / fiTaxable * 100).toFixed(1)}%` : '—'}
+                          </span>
+                        </div>
                         <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50">
                           <span className="text-xs text-brand-gray">Gross Foreign Tax</span>
                           <span className="text-xs font-mono text-white">{formatCurrency(fiGross)}</span>
