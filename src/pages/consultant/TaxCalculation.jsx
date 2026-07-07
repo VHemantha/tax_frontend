@@ -31,19 +31,46 @@ const _SLAB_LABELS = [
   'First Rs. 1,000,000 @ 6%', 'Next Rs. 500,000 @ 18%',
   'Next Rs. 500,000 @ 24%',   'Next Rs. 500,000 @ 30%', 'Balance @ 36%',
 ]
-function computeSlabTax(taxableIncome) {
-  if (taxableIncome <= 0) return { gross_tax: 0, slab_breakdown: [] }
-  let remaining = taxableIncome, tax = 0
-  const breakdown = []
+const _FOREIGN_MAX_RATE = 0.15
+
+// Local income fills each slab first at the normal rate; foreign income fills any
+// remaining slab space at a rate capped at 15% (mirrors calculate_mixed_tax in
+// tax_calculator.py — personal relief spillover is applied by the caller beforehand).
+function calculateMixedTax(taxableLocal, taxableForeign) {
+  let localRemaining = Math.max(0, taxableLocal)
+  let foreignRemaining = Math.max(0, taxableForeign)
+  let localTax = 0, foreignTax = 0
+  const localBreakdown = [], foreignBreakdown = []
+
   _SLABS.forEach(([limit, rate], i) => {
-    if (remaining <= 0) return
-    const applicable = limit ? Math.min(remaining, limit) : remaining
-    const slabTax = Math.round(applicable * rate * 100) / 100
-    tax += slabTax
-    breakdown.push({ label: _SLAB_LABELS[i], rate: String(rate), taxable_amount: String(applicable), tax: String(slabTax) })
-    remaining -= applicable
+    if (localRemaining <= 0 && foreignRemaining <= 0) return
+    let capacity = limit // null = unlimited (final "balance" slab)
+
+    const localUsed = capacity === null ? localRemaining : Math.min(localRemaining, capacity)
+    if (localUsed > 0) {
+      const slabTax = Math.round(localUsed * rate * 100) / 100
+      localTax += slabTax
+      localBreakdown.push({ label: _SLAB_LABELS[i], rate: String(rate), taxable_amount: String(localUsed), tax: String(slabTax) })
+      localRemaining -= localUsed
+      if (capacity !== null) capacity -= localUsed
+    }
+
+    const foreignUsed = capacity === null ? foreignRemaining : Math.min(foreignRemaining, capacity)
+    if (foreignUsed > 0) {
+      const effRate = Math.min(rate, _FOREIGN_MAX_RATE)
+      const slabTax = Math.round(foreignUsed * effRate * 100) / 100
+      foreignTax += slabTax
+      foreignBreakdown.push({ label: _SLAB_LABELS[i], rate: String(effRate), taxable_amount: String(foreignUsed), tax: String(slabTax) })
+      foreignRemaining -= foreignUsed
+    }
   })
-  return { gross_tax: Math.round(tax * 100) / 100, slab_breakdown: breakdown }
+
+  return {
+    localTax: Math.round(localTax * 100) / 100,
+    foreignTax: Math.round(foreignTax * 100) / 100,
+    localBreakdown,
+    foreignBreakdown,
+  }
 }
 
 /* ─── Static display helpers ─── */
@@ -648,13 +675,31 @@ export default function TaxCalculation() {
       ? parseFloat(pu.total_qualifying_payments) || 0
       : computedQP
 
+    // Personal relief is applied to local (non-foreign) income first; any unused
+    // balance then offsets foreign income (mirrors calculate_full_tax in tax_calculator.py).
+    const nonForeignIncome = tai - foreignAmt
+    const localBase = Math.max(0, nonForeignIncome - qp - rr)
+    const localReliefUsed = Math.min(pr, localBase)
+    const computedTaxableLocal = localBase - localReliefUsed
+    const remainingRelief = pr - localReliefUsed
+    const computedTaxableForeign = Math.max(0, foreignAmt - remainingRelief)
+    const computedNetTaxable = computedTaxableLocal + computedTaxableForeign
+
     const netTaxable = pu.net_taxable_income !== undefined
       ? Math.max(0, parseFloat(pu.net_taxable_income) || 0)
-      : Math.max(0, tai - qp - pr - rr)
+      : computedNetTaxable
 
-    // ── Progressive slab tax (excludes foreign income) ────────────────────
-    const slabTaxable = Math.max(0, netTaxable - foreignAmt)
-    const { gross_tax: computedGross, slab_breakdown } = computeSlabTax(slabTaxable)
+    // If net_taxable_income was manually overridden, keep the computed foreign taxable
+    // portion and attribute the rest of the override to local income.
+    const taxableForeign = computedTaxableForeign
+    const taxableLocal = pu.net_taxable_income !== undefined
+      ? Math.max(0, netTaxable - taxableForeign)
+      : computedTaxableLocal
+
+    // ── Progressive slab tax — local fills slabs first; foreign fills the rest,
+    // capped at 15% ─────────────────────────────────────────────────────────
+    const { localTax: computedGross, foreignTax: computedForeignGross, localBreakdown: slab_breakdown, foreignBreakdown: foreign_slab_breakdown } =
+      calculateMixedTax(taxableLocal, taxableForeign)
     const grossTax = pu.gross_tax !== undefined ? parseFloat(pu.gross_tax) || 0 : computedGross
 
     // ── Tax credits ────────────────────────────────────────────────────────
@@ -670,9 +715,9 @@ export default function TaxCalculation() {
       ? parseFloat(pu.total_tax_credits) || 0
       : computedCredits
 
-    // ── Foreign income tax @ flat 15% ──────────────────────────────────────
+    // ── Foreign income tax — progressive slabs capped at 15% ──────────────
     const foreignTaxPaid  = parseFloat(fi.foreign_tax_paid || 0)
-    const computedForeign = Math.max(0, foreignAmt * 0.15 - foreignTaxPaid)
+    const computedForeign = Math.max(0, computedForeignGross - foreignTaxPaid)
     const foreignTax = pu.foreign_income_tax !== undefined
       ? parseFloat(pu.foreign_income_tax) || 0
       : computedForeign
@@ -688,6 +733,9 @@ export default function TaxCalculation() {
       net_taxable_income:        netTaxable,
       gross_tax:                 grossTax,
       slab_breakdown,
+      foreign_slab_breakdown,
+      taxable_foreign:           taxableForeign,
+      foreign_tax_gross:         computedForeignGross,
       wht_cert_total:            whtCerts,
       self_assess_total:         selfAssess,
       total_tax_credits:         credits,
@@ -1509,20 +1557,21 @@ export default function TaxCalculation() {
               <EditableAmount label="Less: Rent Relief (25%)" value={derivedCalc.rent_relief} fieldKey="rent_relief" onSave={handleFieldUpdate} indent />
               <EditableAmount label="Taxable Income" value={derivedCalc.net_taxable_income} fieldKey="net_taxable_income" onSave={handleFieldUpdate} highlight />
 
-              {/* Foreign Income Tax — Flat 15% (always shown; editable) */}
+              {/* Foreign Income Tax — progressive slabs, capped at 15% (always shown; editable) */}
               {(() => {
                 const fi = s?.foreign_income || {}
                 const fiAmt = parseFloat(fi.employment_service_fee || 0) +
                               parseFloat(fi.foreign_business_income || 0) +
                               parseFloat(fi.other_foreign_income || 0)
-                const fiGross = fiAmt * 0.15
                 const fiPaid  = parseFloat(fi.foreign_tax_paid || 0)
-                const fiNet   = Math.max(0, fiGross - fiPaid)
+                const fiTaxable = derivedCalc.taxable_foreign
+                const fiGross = derivedCalc.foreign_tax_gross
+                const fiNet   = derivedCalc.foreign_income_tax
                 const isEditing = editingSection === 'foreign_income'
                 return (
                   <div className="mt-3 bg-brand-black-soft border border-brand-gray-border rounded-xl p-3">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs text-brand-yellow font-semibold uppercase tracking-wider">Foreign Income Tax (Flat 15%)</p>
+                      <p className="text-xs text-brand-yellow font-semibold uppercase tracking-wider">Foreign Income Tax (max 15%)</p>
                       {canEdit && !isEditing && (
                         <button onClick={() => setEditingSection('foreign_income')} className="text-brand-gray hover:text-brand-yellow" title="Edit foreign income">
                           <Pencil size={11} />
@@ -1546,7 +1595,21 @@ export default function TaxCalculation() {
                           <span className="text-xs font-mono text-white">{formatCurrency(fiAmt)}</span>
                         </div>
                         <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50">
-                          <span className="text-xs text-brand-gray">Tax @ 15%</span>
+                          <span className="text-xs text-brand-gray">Taxable Foreign Income (after relief)</span>
+                          <span className="text-xs font-mono text-white">{formatCurrency(fiTaxable)}</span>
+                        </div>
+                        {derivedCalc.foreign_slab_breakdown.map((row, i) => {
+                          const amt = Math.round(parseFloat(row.taxable_amount || 0))
+                          const pct = Math.round(parseFloat(row.rate) * 100)
+                          return (
+                            <div key={i} className="flex justify-between items-center py-1 border-b border-brand-gray-border/50 pl-3">
+                              <span className="text-xs text-brand-gray">Rs. {amt.toLocaleString('en-LK')} @ {pct}%</span>
+                              <span className="text-xs font-mono text-white">{formatCurrency(row.tax)}</span>
+                            </div>
+                          )
+                        })}
+                        <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50">
+                          <span className="text-xs text-brand-gray">Gross Foreign Tax</span>
                           <span className="text-xs font-mono text-white">{formatCurrency(fiGross)}</span>
                         </div>
                         {fiPaid > 0 && (

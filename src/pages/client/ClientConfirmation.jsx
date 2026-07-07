@@ -411,9 +411,9 @@ export default function ClientConfirmation() {
           {/* C. Foreign Income Tax */}
           {foreignTotal > 0 && (
             <>
-              <SecLabel label="C. Foreign Income Tax (Flat 15%)" />
+              <SecLabel label="C. Foreign Income Tax (Progressive, capped at 15%)" />
               <LineRow label="Foreign Income"            value={foreignTotal} />
-              <LineRow label="Gross Tax @ 15%"           value={foreignTotal * 0.15} />
+              <LineRow label="Gross Foreign Tax"         value={num(s.foreign_income_tax) + num(s.foreign_income?.foreign_tax_paid)} />
               <LineRow label="Foreign Tax Paid Abroad"   value={s.foreign_income?.foreign_tax_paid} deduction />
               <LineRow label="Net Foreign Income Tax"    value={s.foreign_income_tax} />
             </>
