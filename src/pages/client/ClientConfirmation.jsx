@@ -116,14 +116,14 @@ export default function ClientConfirmation() {
   )
 
   // ── Payment notice ──
-  if (submission?.status === 'awaiting_confirmation') {
+  // Keep showing this view (with the popup) while the popup is open, even if the
+  // submission status has since refreshed to 'confirmed' in the background — the
+  // popup must only be dismissed by explicit user action, not a data refetch.
+  if (submission?.status === 'awaiting_confirmation' || showPaymentPopup) {
     return (
       <div className="max-w-2xl mx-auto animate-fade-in">
         {showPaymentPopup && (
-          <div
-            className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-            onClick={e => { if (e.target === e.currentTarget) closePaymentPopup() }}
-          >
+          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
             <div className="bg-brand-black-light border border-brand-gray-border rounded-2xl w-full max-w-md shadow-2xl animate-slide-up p-6 text-center">
               <div className="w-14 h-14 mx-auto mb-4 bg-brand-success/15 rounded-full flex items-center justify-center">
                 <CheckCircle size={28} className="text-brand-success" />
