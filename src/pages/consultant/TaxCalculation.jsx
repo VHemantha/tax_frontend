@@ -36,11 +36,15 @@ const _FOREIGN_MAX_RATE = 0.15
 // Local income fills each slab first at the normal rate; foreign income fills any
 // remaining slab space at a rate capped at 15% (mirrors calculate_mixed_tax in
 // tax_calculator.py — personal relief spillover is applied by the caller beforehand).
+// Foreign income is reported by tax percentage rather than by slab — since every
+// bracket above the first is capped at the same 15%, this collapses to at most two
+// rows (6% and 15%) instead of one row per underlying slab.
 function calculateMixedTax(taxableLocal, taxableForeign) {
   let localRemaining = Math.max(0, taxableLocal)
   let foreignRemaining = Math.max(0, taxableForeign)
   let localTax = 0, foreignTax = 0
-  const localBreakdown = [], foreignBreakdown = []
+  const localBreakdown = []
+  const foreignByRate = new Map() // effective rate → { rate, taxable_amount, tax }
 
   _SLABS.forEach(([limit, rate], i) => {
     if (localRemaining <= 0 && foreignRemaining <= 0) return
@@ -60,10 +64,23 @@ function calculateMixedTax(taxableLocal, taxableForeign) {
       const effRate = Math.min(rate, _FOREIGN_MAX_RATE)
       const slabTax = Math.round(foreignUsed * effRate * 100) / 100
       foreignTax += slabTax
-      foreignBreakdown.push({ label: _SLAB_LABELS[i], rate: String(effRate), taxable_amount: String(foreignUsed), tax: String(slabTax) })
+      const key = effRate.toFixed(4)
+      const bucket = foreignByRate.get(key)
+      if (bucket) {
+        bucket.taxable_amount += foreignUsed
+        bucket.tax += slabTax
+      } else {
+        foreignByRate.set(key, { rate: effRate, taxable_amount: foreignUsed, tax: slabTax })
+      }
       foreignRemaining -= foreignUsed
     }
   })
+
+  const foreignBreakdown = Array.from(foreignByRate.values()).map(b => ({
+    rate: String(b.rate),
+    taxable_amount: String(Math.round(b.taxable_amount * 100) / 100),
+    tax: String(Math.round(b.tax * 100) / 100),
+  }))
 
   return {
     localTax: Math.round(localTax * 100) / 100,
