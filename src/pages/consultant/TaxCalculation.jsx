@@ -698,7 +698,7 @@ export default function TaxCalculation() {
 
     // ── Progressive slab tax — local fills slabs first; foreign fills the rest,
     // capped at 15% ─────────────────────────────────────────────────────────
-    const { localTax: computedGross, foreignTax: computedForeignGross, localBreakdown: slab_breakdown } =
+    const { localTax: computedGross, foreignTax: computedForeignGross, localBreakdown: slab_breakdown, foreignBreakdown: foreign_slab_breakdown } =
       calculateMixedTax(taxableLocal, taxableForeign)
 
     // ── Tax credits ────────────────────────────────────────────────────────
@@ -736,6 +736,7 @@ export default function TaxCalculation() {
       net_taxable_income:        netTaxable,
       gross_tax:                 grossTax,
       slab_breakdown,
+      foreign_slab_breakdown,
       taxable_foreign:           taxableForeign,
       foreign_tax_gross:         computedForeignGross,
       wht_cert_total:            whtCerts,
@@ -1600,12 +1601,31 @@ export default function TaxCalculation() {
                           <span className="text-xs text-brand-gray">Taxable Foreign Income (after relief)</span>
                           <span className="text-xs font-mono text-white">{formatCurrency(fiTaxable)}</span>
                         </div>
-                        <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50">
-                          <span className="text-xs text-brand-gray">Effective Tax Rate</span>
-                          <span className="text-xs font-mono text-white">
-                            {fiTaxable > 0 ? `${(fiGross / fiTaxable * 100).toFixed(1)}%` : '—'}
-                          </span>
-                        </div>
+                        {derivedCalc.foreign_slab_breakdown.length > 0 && (
+                          <div className="py-1.5 border-b border-brand-gray-border/50">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr>
+                                  <th className="text-left font-medium text-brand-gray pb-1">Amount</th>
+                                  <th className="text-center font-medium text-brand-gray pb-1">Rate</th>
+                                  <th className="text-right font-medium text-brand-gray pb-1">Tax</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {derivedCalc.foreign_slab_breakdown.map((row, i) => {
+                                  const pct = Math.round(parseFloat(row.rate) * 100)
+                                  return (
+                                    <tr key={i}>
+                                      <td className="text-left font-mono text-white py-0.5">{formatCurrency(row.taxable_amount)}</td>
+                                      <td className="text-center font-mono text-white py-0.5">{pct}%</td>
+                                      <td className="text-right font-mono text-white py-0.5">{formatCurrency(row.tax)}</td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
                         <div className="flex justify-between items-center py-1 border-b border-brand-gray-border/50">
                           <span className="text-xs text-brand-gray">Gross Foreign Tax</span>
                           <span className="text-xs font-mono text-white">{formatCurrency(fiGross)}</span>
