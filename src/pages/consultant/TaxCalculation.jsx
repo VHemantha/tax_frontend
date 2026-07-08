@@ -700,7 +700,6 @@ export default function TaxCalculation() {
     // capped at 15% ─────────────────────────────────────────────────────────
     const { localTax: computedGross, foreignTax: computedForeignGross, localBreakdown: slab_breakdown } =
       calculateMixedTax(taxableLocal, taxableForeign)
-    const grossTax = pu.gross_tax !== undefined ? parseFloat(pu.gross_tax) || 0 : computedGross
 
     // ── Tax credits ────────────────────────────────────────────────────────
     const apit        = parseFloat(sub.tax_credits?.apit_on_salary              || 0)
@@ -722,7 +721,11 @@ export default function TaxCalculation() {
       ? parseFloat(pu.foreign_income_tax) || 0
       : computedForeign
 
-    const netTax = Math.max(0, grossTax - credits) + foreignTax
+    // ── Gross Tax = sum of slab-wise (local) tax + foreign tax ─────────────
+    const computedCombinedGross = computedGross + foreignTax
+    const grossTax = pu.gross_tax !== undefined ? parseFloat(pu.gross_tax) || 0 : computedCombinedGross
+
+    const netTax = Math.max(0, grossTax - credits)
 
     return {
       total_assessable_income:   tai,
