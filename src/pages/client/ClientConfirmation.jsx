@@ -59,6 +59,7 @@ export default function ClientConfirmation() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [bankSlip, setBankSlip] = useState(null)
+  const [showPaymentPopup, setShowPaymentPopup] = useState(false)
   const fileInputRef = useRef()
 
   const { data: submission, isLoading } = useQuery({
@@ -87,12 +88,16 @@ export default function ClientConfirmation() {
       return api.post(`/tax/submissions/${submissionId}/client-confirm/`)
     },
     onSuccess: () => {
-      toast.success('Acknowledged. Accounts Division will confirm your payment shortly.')
       qc.invalidateQueries(['my-submissions'])
-      navigate('/client/dashboard')
+      setShowPaymentPopup(true)
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed'),
   })
+
+  function closePaymentPopup() {
+    setShowPaymentPopup(false)
+    navigate('/client/dashboard')
+  }
 
   const finalConfirmMutation = useMutation({
     mutationFn: () => api.post(`/tax/submissions/${submissionId}/client-final-confirm/`),
@@ -114,6 +119,25 @@ export default function ClientConfirmation() {
   if (submission?.status === 'awaiting_confirmation') {
     return (
       <div className="max-w-2xl mx-auto animate-fade-in">
+        {showPaymentPopup && (
+          <div
+            className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
+            onClick={e => { if (e.target === e.currentTarget) closePaymentPopup() }}
+          >
+            <div className="bg-brand-black-light border border-brand-gray-border rounded-2xl w-full max-w-md shadow-2xl animate-slide-up p-6 text-center">
+              <div className="w-14 h-14 mx-auto mb-4 bg-brand-success/15 rounded-full flex items-center justify-center">
+                <CheckCircle size={28} className="text-brand-success" />
+              </div>
+              <p className="text-base font-bold text-white mb-3">Thank you for completing your payment.</p>
+              <p className="text-sm text-brand-gray mb-6">
+                Your payment is currently being verified by the DPR team. Once the payment has been confirmed, your detailed tax computation will be available in the portal.
+              </p>
+              <button onClick={closePaymentPopup} className="btn-primary w-full justify-center">
+                Got it
+              </button>
+            </div>
+          </div>
+        )}
         <button onClick={() => navigate('/client/dashboard')} className="btn-ghost mb-4 text-sm">
           <ArrowLeft size={15} /> Back to Dashboard
         </button>
