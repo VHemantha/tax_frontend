@@ -32,6 +32,7 @@ import SuperAdminDashboard from './pages/superadmin/Dashboard'
 import SuperAdminClientList from './pages/superadmin/ClientList'
 import ConsultantManagement from './pages/superadmin/ConsultantManagement'
 import AccountsManagement from './pages/superadmin/AccountsManagement'
+import TaxYears from './pages/superadmin/TaxYears'
 
 export default function App() {
   return (
@@ -80,6 +81,7 @@ export default function App() {
               <Route path="/super-admin/clients/register" element={<RegisterClient />} />
               <Route path="/super-admin/consultants" element={<ConsultantManagement />} />
               <Route path="/super-admin/accounts" element={<AccountsManagement />} />
+              <Route path="/super-admin/tax-years" element={<TaxYears />} />
             </Route>
           </Route>
 
