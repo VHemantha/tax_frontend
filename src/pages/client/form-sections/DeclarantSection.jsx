@@ -94,24 +94,38 @@ export default function DeclarantSection({ submissionId, isReadOnly, onNext, onP
 
           {/* Telephone */}
           <div>
-            <label className="input-label">2. Telephone Number</label>
+            <label className="input-label">
+              2. Telephone Number <span className="text-brand-red">*</span>
+            </label>
             <input
-              {...register('telephone')}
-              className="input-field"
+              {...register('telephone', { required: 'Telephone number is required' })}
+              className={`input-field ${errors.telephone ? 'border-brand-red' : ''}`}
               placeholder="+94 11 000 0000"
               disabled={isReadOnly}
             />
+            {errors.telephone && (
+              <p className="text-xs text-brand-red mt-1 flex items-center gap-1">
+                <AlertCircle size={11} />{errors.telephone.message}
+              </p>
+            )}
           </div>
 
           {/* Mobile */}
           <div>
-            <label className="input-label">3. Mobile Number</label>
+            <label className="input-label">
+              3. Mobile Number <span className="text-brand-red">*</span>
+            </label>
             <input
-              {...register('mobile')}
-              className="input-field"
+              {...register('mobile', { required: 'Mobile number is required' })}
+              className={`input-field ${errors.mobile ? 'border-brand-red' : ''}`}
               placeholder="+94 77 000 0000"
               disabled={isReadOnly}
             />
+            {errors.mobile && (
+              <p className="text-xs text-brand-red mt-1 flex items-center gap-1">
+                <AlertCircle size={11} />{errors.mobile.message}
+              </p>
+            )}
           </div>
 
           {/* Email */}
@@ -156,24 +170,38 @@ export default function DeclarantSection({ submissionId, isReadOnly, onNext, onP
 
           {/* TIN */}
           <div>
-            <label className="input-label">6. TIN (Taxpayer Identification Number)</label>
+            <label className="input-label">
+              6. TIN (Taxpayer Identification Number) <span className="text-brand-red">*</span>
+            </label>
             <input
-              {...register('tin')}
-              className="input-field"
+              {...register('tin', { required: 'TIN is required' })}
+              className={`input-field ${errors.tin ? 'border-brand-red' : ''}`}
               placeholder="TIN number"
               disabled={isReadOnly}
             />
+            {errors.tin && (
+              <p className="text-xs text-brand-red mt-1 flex items-center gap-1">
+                <AlertCircle size={11} />{errors.tin.message}
+              </p>
+            )}
           </div>
 
           {/* PIN */}
           <div>
-            <label className="input-label">7. PIN</label>
+            <label className="input-label">
+              7. PIN <span className="text-brand-red">*</span>
+            </label>
             <input
-              {...register('pin')}
-              className="input-field"
+              {...register('pin', { required: 'PIN is required' })}
+              className={`input-field ${errors.pin ? 'border-brand-red' : ''}`}
               placeholder="PIN"
               disabled={isReadOnly}
             />
+            {errors.pin && (
+              <p className="text-xs text-brand-red mt-1 flex items-center gap-1">
+                <AlertCircle size={11} />{errors.pin.message}
+              </p>
+            )}
           </div>
         </div>
 
