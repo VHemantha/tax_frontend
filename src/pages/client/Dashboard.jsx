@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../contexts/AuthContext'
@@ -7,12 +8,14 @@ import StatusBadge from '../../components/common/StatusBadge'
 import PageHeader from '../../components/common/PageHeader'
 import {
   FileText, Plus, Clock, CheckCircle, AlertCircle, ArrowRight,
-  TrendingUp, Calendar, Bell, ChevronRight, Lock, Unlock, Download, Eye
+  TrendingUp, Calendar, Bell, ChevronRight, Lock, Unlock, Download, Eye,
+  Paperclip, X
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function ClientDashboard() {
   const { user } = useAuth()
+  const [docsSubmission, setDocsSubmission] = useState(null)
   const navigate = useNavigate()
   const qc = useQueryClient()
 
@@ -94,6 +97,29 @@ export default function ClientDashboard() {
       URL.revokeObjectURL(url)
     } catch {
       window.open(sub.final_document_url, '_blank')
+    }
+  }
+
+  // Documents attached to the form while it was being filled in (supporting
+  // documents like salary slips, WHT certs, etc.) — fetched on demand when the
+  // client opens the "View Documents" modal for a past submission.
+  const { data: submissionDocuments = [], isLoading: docsLoading } = useQuery({
+    queryKey: ['documents', docsSubmission?.id],
+    queryFn: () => api.get(`/documents/submission/${docsSubmission.id}/`).then(r => r.data),
+    enabled: !!docsSubmission,
+  })
+
+  async function downloadDocument(doc) {
+    try {
+      const res = await api.get(doc.file_url, { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = doc.original_filename
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      window.open(doc.file_url, '_blank')
     }
   }
 
@@ -283,6 +309,14 @@ export default function ClientDashboard() {
                         <Download size={14} /> Download Final Return
                       </button>
                     )}
+                    {['client_confirmed', 'archived'].includes(currentSubmission.status) && (
+                      <button
+                        onClick={() => setDocsSubmission(currentSubmission)}
+                        className="btn-secondary flex items-center gap-2"
+                      >
+                        <Paperclip size={14} /> View Documents
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <button
@@ -382,6 +416,17 @@ export default function ClientDashboard() {
                               title="Download Final Return"
                             >
                               <FileText size={15} />
+                            </button>
+                          )}
+
+                          {/* Documents attached to the form before archiving */}
+                          {isPast && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setDocsSubmission(sub) }}
+                              className="text-brand-gray hover:text-brand-yellow transition-opacity"
+                              title="View Attached Documents"
+                            >
+                              <Paperclip size={15} />
                             </button>
                           )}
 
@@ -509,6 +554,57 @@ export default function ClientDashboard() {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Attached Documents Modal ── */}
+      {docsSubmission && (
+        <div
+          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
+          onClick={e => { if (e.target === e.currentTarget) setDocsSubmission(null) }}
+        >
+          <div className="bg-brand-black-light border border-brand-gray-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-brand-gray-border flex-shrink-0">
+              <div>
+                <p className="font-semibold text-white">Attached Documents</p>
+                <p className="text-xs text-brand-gray mt-0.5">{docsSubmission.tax_year_label}</p>
+              </div>
+              <button onClick={() => setDocsSubmission(null)} className="text-brand-gray hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              {docsLoading ? (
+                <div className="flex justify-center py-8">
+                  <span className="w-6 h-6 border-2 border-brand-yellow border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : submissionDocuments.length === 0 ? (
+                <p className="text-sm text-brand-gray text-center py-8">No documents were attached to this submission.</p>
+              ) : (
+                <div className="space-y-2">
+                  {submissionDocuments.map(doc => (
+                    <div key={doc.id} className="flex items-center gap-2 bg-brand-black-soft rounded-lg px-3 py-2">
+                      <FileText size={13} className="text-brand-yellow flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-white truncate">{doc.original_filename}</p>
+                        <p className="text-xs text-brand-gray">{doc.document_type_display}</p>
+                      </div>
+                      <div className="flex gap-1 items-center flex-shrink-0">
+                        <a href={doc.file_url} target="_blank" rel="noreferrer"
+                          className="p-1 text-brand-gray hover:text-brand-yellow rounded" title="View">
+                          <Eye size={13} />
+                        </a>
+                        <button type="button" onClick={() => downloadDocument(doc)}
+                          className="p-1 text-brand-gray hover:text-brand-yellow rounded" title="Download">
+                          <Download size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
