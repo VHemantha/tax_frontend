@@ -47,7 +47,7 @@ export default function RegisterClient() {
       if (data.consultant_id) {
         payload.consultant_id = Number(data.consultant_id)
       }
-      await api.post('/clients/register/', payload)
+      const res = await api.post('/clients/register/', payload)
       const assignedConsultant = consultants.find(c => String(c.id) === String(data.consultant_id))?.name
       setSuccess({
         email: data.email,
@@ -55,9 +55,17 @@ export default function RegisterClient() {
         password: data.password,
         name: `${data.first_name} ${data.last_name}`,
         consultant: assignedConsultant,
+        smsSent: res.data.sms_sent,
       })
       reset({ password: generatePassword() })
       toast.success('Client registered successfully!')
+      if (res.data.sms_sent === true) {
+        toast.success('Welcome SMS sent to client.')
+      } else if (res.data.sms_sent === false) {
+        toast.error('Client registered, but the welcome SMS failed to send.')
+      } else {
+        toast('No mobile number on file — welcome SMS not sent.', { icon: 'ℹ️' })
+      }
     } catch (err) {
       const errs = err.response?.data
       if (errs) {
@@ -122,6 +130,14 @@ export default function RegisterClient() {
             {success.consultant && (
               <p><span className="text-brand-gray">Assigned to: </span><span className="text-blue-400">{success.consultant}</span></p>
             )}
+            <p>
+              <span className="text-brand-gray">Welcome SMS: </span>
+              {success.smsSent === true && <span className="text-brand-success">Sent</span>}
+              {success.smsSent === false && <span className="text-brand-red">Failed to send</span>}
+              {(success.smsSent === null || success.smsSent === undefined) && (
+                <span className="text-brand-gray">Not sent (no mobile number on file)</span>
+              )}
+            </p>
           </div>
           <div className="flex gap-3 mt-3">
             <button onClick={copyCredentials} className="btn-secondary text-xs">
