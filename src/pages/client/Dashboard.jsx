@@ -79,6 +79,24 @@ export default function ClientDashboard() {
     }
   }
 
+  async function downloadFinalDocument(sub) {
+    if (!sub.final_document_url) {
+      toast.error('Final return document is not available yet.')
+      return
+    }
+    try {
+      const res = await api.get(sub.final_document_url, { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Final_Tax_Return_${sub.tax_year_label?.replace(/\//g, '-')}`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      window.open(sub.final_document_url, '_blank')
+    }
+  }
+
   const statusIcon = (status) => {
     const icons = {
       draft: <FileText size={16} className="text-brand-gray" />,
@@ -257,6 +275,14 @@ export default function ClientDashboard() {
                         <Download size={14} /> Download PDF
                       </button>
                     )}
+                    {currentSubmission.status === 'archived' && currentSubmission.final_document_url && (
+                      <button
+                        onClick={() => downloadFinalDocument(currentSubmission)}
+                        className="btn-secondary flex items-center gap-2"
+                      >
+                        <Download size={14} /> Download Final Return
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <button
@@ -345,6 +371,17 @@ export default function ClientDashboard() {
                               title="Download PDF"
                             >
                               <Download size={15} />
+                            </button>
+                          )}
+
+                          {/* Final return document — uploaded by consultant when archiving */}
+                          {sub.status === 'archived' && sub.final_document_url && (
+                            <button
+                              onClick={e => { e.stopPropagation(); downloadFinalDocument(sub) }}
+                              className="text-brand-success hover:opacity-80 transition-opacity"
+                              title="Download Final Return"
+                            >
+                              <FileText size={15} />
                             </button>
                           )}
 

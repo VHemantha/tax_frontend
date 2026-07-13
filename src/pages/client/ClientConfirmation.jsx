@@ -837,6 +837,14 @@ export default function ClientConfirmation() {
             <button onClick={downloadPdf} className="btn-primary flex items-center gap-2">
               <Download size={15} /> Download Tax Return PDF
             </button>
+            {submission?.status === 'archived' && documents.some(d => d.document_type === 'final_submission') && (
+              <button
+                onClick={() => downloadDocument(documents.find(d => d.document_type === 'final_submission'))}
+                className="btn-primary flex items-center gap-2"
+              >
+                <Download size={15} /> Download Final Return
+              </button>
+            )}
           </div>
         </div>
       </div>
