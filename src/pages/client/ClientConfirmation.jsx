@@ -6,7 +6,7 @@ import {
   CheckCircle, Banknote, Phone, Mail, ArrowLeft, Clock,
   FileText, TrendingUp, Home, Car, Landmark, PieChart,
   Wallet, Package, Building2, AlertTriangle, ChevronDown, ChevronRight, Download,
-  Upload, Paperclip, X
+  Upload, Paperclip, X, Eye
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '../../utils/format'
 import toast from 'react-hot-toast'
@@ -66,6 +66,20 @@ export default function ClientConfirmation() {
     queryKey: ['submission', submissionId],
     queryFn: () => api.get(`/tax/submissions/${submissionId}/`).then(r => r.data),
   })
+
+  const { data: documents = [] } = useQuery({
+    queryKey: ['documents', submissionId],
+    queryFn: () => api.get(`/documents/submission/${submissionId}/`).then(r => r.data),
+    enabled: !!submissionId,
+  })
+
+  async function downloadDocument(doc) {
+    try {
+      const res = await api.get(doc.file_url, { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const a = document.createElement('a'); a.href = url; a.download = doc.original_filename; a.click()
+    } catch { window.open(doc.file_url, '_blank') }
+  }
 
   function handleSlipFile(e) {
     const f = e.target.files[0]
@@ -742,6 +756,38 @@ export default function ClientConfirmation() {
                 <span className="font-mono text-sm text-white">{formatCurrency(cf.living_expenses_year)}</span>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Uploaded Documents ── */}
+        {documents.length > 0 && (
+          <div className="card mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <FileText size={15} className="text-brand-yellow" />
+              <p className="text-sm font-semibold text-white">Uploaded Documents ({documents.length})</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {documents.map(doc => (
+                <div key={doc.id} className="flex items-center gap-2 bg-brand-black rounded-lg px-3 py-2">
+                  <FileText size={13} className="text-brand-yellow flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-white truncate">{doc.original_filename}</p>
+                    <p className="text-xs text-brand-gray">{doc.document_type_display}</p>
+                  </div>
+                  <div className="flex gap-1 items-center flex-shrink-0">
+                    <a href={doc.file_url} target="_blank" rel="noreferrer"
+                      className="p-1 text-brand-gray hover:text-brand-yellow rounded" title="View">
+                      <Eye size={13} />
+                    </a>
+                    <button type="button" onClick={() => downloadDocument(doc)}
+                      className="p-1 text-brand-gray hover:text-brand-yellow rounded" title="Download">
+                      <Download size={13} />
+                    </button>
+                    {doc.is_verified && <CheckCircle size={12} className="text-brand-success" />}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

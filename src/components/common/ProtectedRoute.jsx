@@ -8,7 +8,7 @@ function defaultRedirect(role) {
   return '/client/dashboard'
 }
 
-export default function ProtectedRoute({ role }) {
+export default function ProtectedRoute({ role, roles }) {
   const { user, loading } = useAuth()
 
   if (loading) {
@@ -20,7 +20,8 @@ export default function ProtectedRoute({ role }) {
   }
 
   if (!user) return <Navigate to="/login" replace />
-  if (role && user.role !== role) {
+  const allowedRoles = roles || (role ? [role] : null)
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to={defaultRedirect(user.role)} replace />
   }
 

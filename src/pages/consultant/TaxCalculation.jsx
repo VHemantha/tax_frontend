@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
+import { useAuth } from '../../contexts/AuthContext'
 import { formatCurrency, formatCurrencyInt, formatDate, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../../utils/format'
 import StatusBadge from '../../components/common/StatusBadge'
 import PageHeader from '../../components/common/PageHeader'
@@ -452,6 +453,7 @@ export default function TaxCalculation() {
   const { submissionId } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const { user } = useAuth()
   const [editingSection, setEditingSection] = useState(null)
   const [sectionSaving, setSectionSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'log'
@@ -698,7 +700,8 @@ export default function TaxCalculation() {
   )
 
   const s = submission
-  const canEdit = s?.status !== 'archived'
+  // Super admin can edit even after the return has been confirmed and archived.
+  const canEdit = s?.status !== 'archived' || user?.role === 'super_admin'
   const canConfirm = ['submitted', 'under_review', 'info_requested', 'draft'].includes(s?.status)
   const canFinalSubmit = s?.status === 'confirmed'
   const paymentReceived = s?.payment_status === 'paid'

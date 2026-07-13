@@ -56,13 +56,20 @@ export default function App() {
           <Route element={<ProtectedRoute role="consultant" />}>
             <Route element={<ConsultantLayout />}>
               <Route path="/consultant/dashboard" element={<ConsultantDashboard />} />
-              <Route path="/consultant/clients" element={<ClientList />} />
               <Route path="/consultant/clients/register" element={<RegisterClient />} />
-              <Route path="/consultant/clients/:clientId" element={<ClientDetail />} />
-              <Route path="/consultant/submissions/:submissionId/calculate" element={<TaxCalculation />} />
               <Route path="/consultant/archive" element={<ArchivePage />} />
               <Route path="/consultant/portfolio" element={<Portfolio />} />
               <Route path="/consultant/status/:statusKey" element={<StatusDrillDown />} />
+            </Route>
+          </Route>
+
+          {/* Client detail & tax computation — shared by consultants and super_admin
+              (super_admin needs this to edit returns even after client confirmation/archive) */}
+          <Route element={<ProtectedRoute roles={['consultant', 'super_admin']} />}>
+            <Route element={<ConsultantLayout />}>
+              <Route path="/consultant/clients" element={<ClientList />} />
+              <Route path="/consultant/clients/:clientId" element={<ClientDetail />} />
+              <Route path="/consultant/submissions/:submissionId/calculate" element={<TaxCalculation />} />
             </Route>
           </Route>
 

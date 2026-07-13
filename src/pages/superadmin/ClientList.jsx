@@ -99,7 +99,11 @@ export default function SuperAdminClientList() {
             </thead>
             <tbody className="divide-y divide-brand-gray-border">
               {filtered.map(client => (
-                <tr key={client.id} className="hover:bg-brand-black-soft transition-colors group">
+                <tr
+                  key={client.id}
+                  onClick={() => navigate(`/consultant/clients/${client.id}`)}
+                  className="hover:bg-brand-black-soft transition-colors group cursor-pointer"
+                >
                   <td className="px-6 py-3">
                     <p className="font-medium text-white">{client.full_name}</p>
                     <p className="text-xs text-brand-gray">{client.email}</p>

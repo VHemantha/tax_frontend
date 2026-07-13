@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../../../services/api'
 import { formatCurrency, formatDate } from '../../../utils/format'
 import StatusBadge from '../../../components/common/StatusBadge'
-import { ChevronLeft, Send, FileText, CheckCircle, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, Send, FileText, CheckCircle, AlertTriangle, Eye, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 function D(v) { return parseFloat(v || 0) }
@@ -41,6 +41,14 @@ export default function ReviewSection({ submissionId, submission, documents, onP
   const hasDeclarant = !!submission?.declarant_details
 
   const sectionDocs = (section) => documents.filter(d => d.section === section)
+
+  async function downloadDocument(doc) {
+    try {
+      const res = await api.get(doc.file_url, { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const a = document.createElement('a'); a.href = url; a.download = doc.original_filename; a.click()
+    } catch { window.open(doc.file_url, '_blank') }
+  }
 
   function SummaryRow({ label, value, highlight }) {
     return (
@@ -110,11 +118,21 @@ export default function ReviewSection({ submissionId, submission, documents, onP
             {documents.map(doc => (
               <div key={doc.id} className="flex items-center gap-2 bg-brand-black-soft rounded-lg px-3 py-2">
                 <FileText size={13} className="text-brand-yellow flex-shrink-0" />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs text-white truncate">{doc.original_filename}</p>
                   <p className="text-xs text-brand-gray">{doc.document_type_display}</p>
                 </div>
-                {doc.is_verified && <CheckCircle size={12} className="text-brand-success ml-auto flex-shrink-0" />}
+                <div className="flex gap-1 items-center flex-shrink-0">
+                  <a href={doc.file_url} target="_blank" rel="noreferrer"
+                    className="p-1 text-brand-gray hover:text-brand-yellow rounded" title="View">
+                    <Eye size={13} />
+                  </a>
+                  <button type="button" onClick={() => downloadDocument(doc)}
+                    className="p-1 text-brand-gray hover:text-brand-yellow rounded" title="Download">
+                    <Download size={13} />
+                  </button>
+                  {doc.is_verified && <CheckCircle size={12} className="text-brand-success" />}
+                </div>
               </div>
             ))}
           </div>
