@@ -8,10 +8,16 @@ import PageHeader from '../../components/common/PageHeader'
 import Modal from '../../components/common/Modal'
 import {
   ArrowLeft, Calculator, MessageSquare, FileText, Download,
-  CheckCircle, Eye, Send, Archive, Calendar, Plus, X, Pencil, Save
+  CheckCircle, Eye, EyeOff, Send, Archive, Calendar, Plus, X, Pencil, Save,
+  KeyRound, Copy
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
+
+function generatePassword() {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$!'
+  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+}
 
 export default function ClientDetail() {
   const { clientId } = useParams()
@@ -25,6 +31,12 @@ export default function ClientDetail() {
   const [editingProfile, setEditingProfile] = useState(false)
   const [editDraft, setEditDraft] = useState({})
   const [editSaving, setEditSaving] = useState(false)
+  const [editingCredentials, setEditingCredentials] = useState(false)
+  const [credDraft, setCredDraft] = useState({ username: '', password: '' })
+  const [credSaving, setCredSaving] = useState(false)
+  const [credShowPass, setCredShowPass] = useState(false)
+  const [updatedCredentials, setUpdatedCredentials] = useState(null)
+  const [credCopied, setCredCopied] = useState(false)
 
   const { data: client } = useQuery({
     queryKey: ['client', clientId],
@@ -135,6 +147,48 @@ export default function ClientDetail() {
       else toast.error('Failed to save changes')
     }
     setEditSaving(false)
+  }
+
+  function openEditCredentials() {
+    setCredDraft({ username: client?.username || '', password: '' })
+    setCredShowPass(false)
+    setUpdatedCredentials(null)
+    setEditingCredentials(true)
+  }
+
+  async function saveCredentials() {
+    if (!credDraft.username?.trim()) {
+      toast.error('Username is required')
+      return
+    }
+    setCredSaving(true)
+    try {
+      const payload = { username: credDraft.username.trim() }
+      if (credDraft.password) payload.password = credDraft.password
+      const res = await api.patch(`/clients/${clientId}/credentials/`, payload)
+      qc.invalidateQueries(['client', clientId])
+      setEditingCredentials(false)
+      if (res.data.password) {
+        setUpdatedCredentials({ username: res.data.username || payload.username, password: res.data.password })
+        toast.success('Credentials updated — share the new password with the client')
+      } else {
+        toast.success('Username updated')
+      }
+    } catch (err) {
+      const errs = err.response?.data
+      if (errs) Object.values(errs).flat().forEach(msg => toast.error(msg))
+      else toast.error('Failed to update credentials')
+    }
+    setCredSaving(false)
+  }
+
+  function copyCredentials() {
+    if (!updatedCredentials) return
+    const text = `OVERDIME - TMS Login Credentials\n\nUsername: ${updatedCredentials.username}\nPassword: ${updatedCredentials.password}\n\nPlease log in and change your password immediately.`
+    navigator.clipboard.writeText(text)
+    setCredCopied(true)
+    setTimeout(() => setCredCopied(false), 2000)
+    toast.success('Credentials copied to clipboard')
   }
 
   async function downloadPDF(submissionId) {
@@ -255,6 +309,98 @@ export default function ClientDetail() {
                     </span>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Login Credentials card */}
+          <div className="card">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="section-header mb-0">
+                <KeyRound size={16} className="text-brand-yellow" />
+                Login Credentials
+              </h3>
+              {!editingCredentials && (
+                <button onClick={openEditCredentials} className="btn-ghost text-xs px-2.5 py-1.5">
+                  <Pencil size={12} /> Change
+                </button>
+              )}
+            </div>
+
+            {editingCredentials ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-brand-gray block mb-1">Username</label>
+                  <input
+                    type="text"
+                    value={credDraft.username}
+                    onChange={e => setCredDraft(d => ({ ...d, username: e.target.value }))}
+                    className="input-field text-sm py-1.5"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-brand-gray block mb-1">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={credShowPass ? 'text' : 'password'}
+                      value={credDraft.password}
+                      onChange={e => setCredDraft(d => ({ ...d, password: e.target.value }))}
+                      placeholder="Leave blank to keep current password"
+                      className="input-field text-sm py-1.5 pr-16"
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                      <button type="button" onClick={() => setCredShowPass(v => !v)} className="text-brand-gray hover:text-white p-1">
+                        {credShowPass ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setCredDraft(d => ({ ...d, password: generatePassword() })); setCredShowPass(true) }}
+                        className="text-xs text-brand-yellow hover:opacity-80 px-1"
+                      >
+                        Gen
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-brand-gray mt-1">Client will be required to change it on next login.</p>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={saveCredentials}
+                    disabled={credSaving}
+                    className="btn-primary text-xs flex-1"
+                  >
+                    <Save size={12} /> {credSaving ? 'Saving…' : 'Save Changes'}
+                  </button>
+                  <button
+                    onClick={() => setEditingCredentials(false)}
+                    className="btn-secondary text-xs"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex justify-between items-start">
+                  <span className="text-xs text-brand-gray">Username</span>
+                  <span className="text-sm text-white font-medium text-right">{client?.username || '—'}</span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-xs text-brand-gray">Password</span>
+                  <span className="text-sm text-brand-gray italic text-right">Hidden — set a new one to change it</span>
+                </div>
+                {updatedCredentials && (
+                  <div className="mt-2 bg-brand-yellow/5 border border-brand-yellow/20 rounded-lg p-3">
+                    <p className="text-xs text-brand-yellow font-semibold mb-2">New credentials — share with client</p>
+                    <div className="font-mono text-xs space-y-1 mb-2">
+                      <p><span className="text-brand-gray">Username: </span><span className="text-white">{updatedCredentials.username}</span></p>
+                      <p><span className="text-brand-gray">Password: </span><span className="text-brand-red">{updatedCredentials.password}</span></p>
+                    </div>
+                    <button onClick={copyCredentials} className="btn-secondary text-xs">
+                      {credCopied ? <><CheckCircle size={12} /> Copied!</> : <><Copy size={12} /> Copy Credentials</>}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
