@@ -1,17 +1,26 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
 import api from '../../services/api'
 import PageHeader from '../../components/common/PageHeader'
 import StatusBadge from '../../components/common/StatusBadge'
-import { Users, Search, ArrowRight, Filter } from 'lucide-react'
+import { Users, Search, ArrowRight, Filter, CheckCircle, UserX } from 'lucide-react'
+import toast from 'react-hot-toast'
+
+const ACTIVE_FILTER_OPTIONS = [
+  { value: '', label: 'All (Active & Inactive)' },
+  { value: 'true', label: 'Active Only' },
+  { value: 'false', label: 'Inactive Only' },
+]
 
 export default function SuperAdminClientList() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
 
   const consultantId = searchParams.get('consultant_id') || ''
+  const activeFilter = searchParams.get('is_active') || ''
 
   const { data: consultants = [] } = useQuery({
     queryKey: ['consultant-list'],
@@ -19,13 +28,30 @@ export default function SuperAdminClientList() {
   })
 
   const { data: clients = [], isLoading } = useQuery({
-    queryKey: ['all-clients', consultantId],
+    queryKey: ['all-clients', consultantId, activeFilter],
     queryFn: () => {
       const params = new URLSearchParams()
       if (consultantId) params.set('consultant_id', consultantId)
+      if (activeFilter) params.set('is_active', activeFilter)
       return api.get(`/clients/?${params}`).then(r => r.data)
     },
   })
+
+  const toggleActive = useMutation({
+    mutationFn: ({ clientId, isActive }) => api.patch(`/clients/${clientId}/`, { is_active: isActive }),
+    onSuccess: (_res, { isActive }) => {
+      toast.success(isActive ? 'Client marked active' : 'Client marked inactive')
+      qc.invalidateQueries(['all-clients'])
+    },
+    onError: () => toast.error('Failed to update client status'),
+  })
+
+  const setParam = (key, val) => {
+    const next = new URLSearchParams(searchParams)
+    if (val) next.set(key, val)
+    else next.delete(key)
+    setSearchParams(next)
+  }
 
   const filtered = clients.filter(c => {
     if (!search) return true
@@ -61,16 +87,24 @@ export default function SuperAdminClientList() {
           <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray" />
           <select
             value={consultantId}
-            onChange={e => {
-              const val = e.target.value
-              if (val) setSearchParams({ consultant_id: val })
-              else setSearchParams({})
-            }}
+            onChange={e => setParam('consultant_id', e.target.value)}
             className="input-field pl-9 pr-8 appearance-none min-w-48"
           >
             <option value="">All Consultants</option>
             {consultants.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="relative">
+          <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray" />
+          <select
+            value={activeFilter}
+            onChange={e => setParam('is_active', e.target.value)}
+            className="input-field pl-9 pr-8 appearance-none min-w-48"
+          >
+            {ACTIVE_FILTER_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
         </div>
@@ -94,6 +128,7 @@ export default function SuperAdminClientList() {
                 <th className="text-left text-xs text-brand-gray uppercase tracking-wider px-4 py-3">TIN</th>
                 <th className="text-left text-xs text-brand-gray uppercase tracking-wider px-4 py-3">Consultant</th>
                 <th className="text-left text-xs text-brand-gray uppercase tracking-wider px-4 py-3">Status</th>
+                <th className="text-center text-xs text-brand-gray uppercase tracking-wider px-4 py-3">Active</th>
                 <th className="py-3 px-4"></th>
               </tr>
             </thead>
@@ -112,6 +147,21 @@ export default function SuperAdminClientList() {
                   <td className="px-4 py-3 text-brand-gray text-xs">{client.consultant_name || '—'}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={client.status} />
+                  </td>
+                  <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => toggleActive.mutate({ clientId: client.id, isActive: !client.is_active })}
+                      disabled={toggleActive.isPending}
+                      title={client.is_active ? 'Click to mark inactive' : 'Click to mark active'}
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors ${
+                        client.is_active
+                          ? 'bg-brand-success/10 text-brand-success hover:bg-brand-success/20'
+                          : 'bg-brand-red/10 text-brand-red hover:bg-brand-red/20'
+                      }`}
+                    >
+                      {client.is_active ? <CheckCircle size={10} /> : <UserX size={10} />}
+                      {client.is_active ? 'Active' : 'Inactive'}
+                    </button>
                   </td>
                   <td className="px-4 py-3">
                     <ArrowRight size={14} className="text-brand-gray opacity-0 group-hover:opacity-100 transition-opacity" />

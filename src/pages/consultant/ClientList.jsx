@@ -7,7 +7,7 @@ import StatusBadge from '../../components/common/StatusBadge'
 import Modal from '../../components/common/Modal'
 import { formatDateTime } from '../../utils/format'
 import {
-  UserPlus, Search, Filter, ArrowRight, Bell, RefreshCw, Mail
+  UserPlus, Search, Filter, ArrowRight, Bell, RefreshCw, Mail, CheckCircle, UserX
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -20,19 +20,27 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'archived', label: 'Archived' },
 ]
 
+const ACTIVE_FILTER_OPTIONS = [
+  { value: '', label: 'All (Active & Inactive)' },
+  { value: 'true', label: 'Active Only' },
+  { value: 'false', label: 'Inactive Only' },
+]
+
 export default function ClientList() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [activeFilter, setActiveFilter] = useState('')
   const [reminderModal, setReminderModal] = useState(null)
   const [reminderMsg, setReminderMsg] = useState('')
 
   const { data: clients = [], isLoading } = useQuery({
-    queryKey: ['clients', statusFilter],
+    queryKey: ['clients', statusFilter, activeFilter],
     queryFn: () => {
       const params = new URLSearchParams()
       if (statusFilter) params.set('status', statusFilter)
+      if (activeFilter) params.set('is_active', activeFilter)
       return api.get(`/clients/?${params}`).then(r => r.data)
     },
   })
@@ -45,6 +53,15 @@ export default function ClientList() {
       setReminderMsg('')
     },
     onError: () => toast.error('Failed to send reminder'),
+  })
+
+  const toggleActive = useMutation({
+    mutationFn: ({ clientId, isActive }) => api.patch(`/clients/${clientId}/`, { is_active: isActive }),
+    onSuccess: (_res, { isActive }) => {
+      toast.success(isActive ? 'Client marked active' : 'Client marked inactive')
+      qc.invalidateQueries(['clients'])
+    },
+    onError: () => toast.error('Failed to update client status'),
   })
 
   const filtered = clients.filter(c =>
@@ -88,6 +105,18 @@ export default function ClientList() {
             ))}
           </select>
         </div>
+        <div className="relative">
+          <Filter size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray" />
+          <select
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value)}
+            className="input-field pl-9 pr-8 appearance-none bg-brand-black-soft min-w-[180px]"
+          >
+            {ACTIVE_FILTER_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value} className="bg-brand-black">{opt.label}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Table */}
@@ -99,15 +128,16 @@ export default function ClientList() {
                 <th className="table-header text-left">Client</th>
                 <th className="table-header text-left">TIN</th>
                 <th className="table-header text-left">Status</th>
+                <th className="table-header text-center">Active</th>
                 <th className="table-header text-left">Registered</th>
                 <th className="table-header text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5} className="table-cell text-center py-8 text-brand-gray">Loading clients...</td></tr>
+                <tr><td colSpan={6} className="table-cell text-center py-8 text-brand-gray">Loading clients...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={5} className="table-cell text-center py-12 text-brand-gray">No clients found</td></tr>
+                <tr><td colSpan={6} className="table-cell text-center py-12 text-brand-gray">No clients found</td></tr>
               ) : (
                 filtered.map(client => (
                   <tr key={client.id} className="table-row">
@@ -124,6 +154,21 @@ export default function ClientList() {
                     </td>
                     <td className="table-cell font-mono text-sm">{client.tin || '—'}</td>
                     <td className="table-cell"><StatusBadge status={client.status} /></td>
+                    <td className="table-cell text-center">
+                      <button
+                        onClick={() => toggleActive.mutate({ clientId: client.id, isActive: !client.is_active })}
+                        disabled={toggleActive.isPending}
+                        title={client.is_active ? 'Click to mark inactive' : 'Click to mark active'}
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors ${
+                          client.is_active
+                            ? 'bg-brand-success/10 text-brand-success hover:bg-brand-success/20'
+                            : 'bg-brand-red/10 text-brand-red hover:bg-brand-red/20'
+                        }`}
+                      >
+                        {client.is_active ? <CheckCircle size={10} /> : <UserX size={10} />}
+                        {client.is_active ? 'Active' : 'Inactive'}
+                      </button>
+                    </td>
                     <td className="table-cell text-brand-gray text-xs">{formatDateTime(client.created_at)}</td>
                     <td className="table-cell">
                       <div className="flex items-center justify-center gap-2">
