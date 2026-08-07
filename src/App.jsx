@@ -4,6 +4,8 @@ import ProtectedRoute from './components/common/ProtectedRoute'
 
 // Auth
 import Login from './pages/auth/Login'
+import ForgotPassword from './pages/auth/ForgotPassword'
+import ResetPassword from './pages/auth/ResetPassword'
 
 // Client pages
 import ClientLayout from './components/layout/ClientLayout'
@@ -41,6 +43,8 @@ export default function App() {
         <Routes>
           {/* Public */}
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
 
           {/* Client Routes */}

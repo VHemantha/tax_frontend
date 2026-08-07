@@ -184,7 +184,7 @@ export default function ClientDetail() {
 
   function copyCredentials() {
     if (!updatedCredentials) return
-    const text = `OVERDIME - TMS Login Credentials\n\nUsername: ${updatedCredentials.username}\nPassword: ${updatedCredentials.password}\n\nPlease log in and change your password immediately.`
+    const text = `DPR - TMS Login Credentials\n\nUsername: ${updatedCredentials.username}\nPassword: ${updatedCredentials.password}\n\nPlease log in and change your password immediately.`
     navigator.clipboard.writeText(text)
     setCredCopied(true)
     setTimeout(() => setCredCopied(false), 2000)

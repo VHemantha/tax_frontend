@@ -11,8 +11,9 @@ import {
   ArrowLeft, Calculator, Send, FileText, Eye, Download,
   CheckCircle, AlertCircle, Pencil, Save, X, ChevronDown, ChevronRight,
   User, Home, Banknote, TrendingUp, Trash2, Plus,
-  History, Upload, Archive
+  History, Upload, Archive, Landmark
 } from 'lucide-react'
+import CashFlowSection from '../client/form-sections/CashFlowSection'
 
 function RsIcon({ size = 16, className = '' }) {
   return (
@@ -1429,6 +1430,13 @@ export default function TaxCalculation() {
                   onDelete={id => deleteRow('liabilities', id)}
                   onAdd={() => addRow('liabilities/', { description: '', original_amount: 0, amount_as_at_date: 0 })}
                 />
+              </div>
+            </Section>
+
+            {/* ── Cash Flow ── */}
+            <Section title="Cash Flow — Receipts & Payments" icon={Landmark}>
+              <div className="pt-3">
+                <CashFlowSection submissionId={submissionId} isReadOnly={!canEdit} showStepNav={false} />
               </div>
             </Section>
 

@@ -195,7 +195,7 @@ function SubtotalRow({ label, value, highlight }) {
 }
 
 /* ── Main component ── */
-export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPrev }) {
+export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPrev, showStepNav = true }) {
   const qc = useQueryClient()
 
   const { data: saved } = useQuery({
@@ -488,21 +488,31 @@ export default function CashFlowSection({ submissionId, isReadOnly, onNext, onPr
       </div>
 
       {/* ── Actions ── */}
-      <div className="flex justify-between items-center pt-2">
-        <button type="button" onClick={onPrev} className="btn-secondary">
-          <ArrowLeft size={15} /> Back
-        </button>
-        <div className="flex gap-3">
-          {!ro && (
-            <button type="button" onClick={handleSave} disabled={saving} className="btn-secondary">
-              <Save size={14} /> {saving ? 'Saving…' : 'Save'}
-            </button>
-          )}
-          <button type="button" onClick={ro ? onNext : handleSaveAndNext} disabled={saving} className="btn-primary">
-            Next: Declarant Details <ArrowRight size={15} />
+      {showStepNav ? (
+        <div className="flex justify-between items-center pt-2">
+          <button type="button" onClick={onPrev} className="btn-secondary">
+            <ArrowLeft size={15} /> Back
           </button>
+          <div className="flex gap-3">
+            {!ro && (
+              <button type="button" onClick={handleSave} disabled={saving} className="btn-secondary">
+                <Save size={14} /> {saving ? 'Saving…' : 'Save'}
+              </button>
+            )}
+            <button type="button" onClick={ro ? onNext : handleSaveAndNext} disabled={saving} className="btn-primary">
+              Next: Declarant Details <ArrowRight size={15} />
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        !ro && (
+          <div className="flex justify-end pt-2">
+            <button type="button" onClick={handleSave} disabled={saving} className="btn-primary">
+              <Save size={14} /> {saving ? 'Saving…' : 'Save Cash Flow'}
+            </button>
+          </div>
+        )
+      )}
     </div>
   )
 }

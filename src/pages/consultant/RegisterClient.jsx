@@ -79,7 +79,7 @@ export default function RegisterClient() {
 
   function copyCredentials() {
     if (!success) return
-    const text = `OVERDIME - TMS Login Credentials\n\nEmail: ${success.email}\nUsername: ${success.username}\nPassword: ${success.password}\n\nPlease log in to OVERDIME Tax Management System and change your password immediately.`
+    const text = `DPR - TMS Login Credentials\n\nEmail: ${success.email}\nUsername: ${success.username}\nPassword: ${success.password}\n\nPlease log in to DPR Tax Management System and change your password immediately.`
     navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
