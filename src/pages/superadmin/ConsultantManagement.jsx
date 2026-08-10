@@ -4,7 +4,7 @@ import api from '../../services/api'
 import PageHeader from '../../components/common/PageHeader'
 import {
   UserPlus, Trash2, ArrowRightLeft, Users, Eye, EyeOff,
-  AlertCircle, CheckCircle, X, ChevronDown, Search, UserCheck
+  AlertCircle, CheckCircle, X, ChevronDown, Search, UserCheck, Pencil, Phone
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -72,6 +72,25 @@ export default function ConsultantManagement() {
       setCreateErrors(errs)
     },
   })
+
+  /* ── Edit phone modal ── */
+  const [editTarget, setEditTarget] = useState(null)
+  const [editPhone, setEditPhone] = useState('')
+
+  const editPhoneMutation = useMutation({
+    mutationFn: ({ id, phone }) => api.patch(`/clients/consultants/${id}/`, { phone }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries(['consultants-manage'])
+      setEditTarget(null)
+      toast.success('Phone number updated.')
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to update phone number'),
+  })
+
+  function openEditPhone(consultant) {
+    setEditTarget(consultant)
+    setEditPhone(consultant.phone || '')
+  }
 
   /* ── Delete modal ── */
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -178,6 +197,7 @@ export default function ConsultantManagement() {
                 <tr>
                   <th className="table-header text-left rounded-tl-lg">Name</th>
                   <th className="table-header text-left">Email</th>
+                  <th className="table-header text-left">Phone</th>
                   <th className="table-header text-center">Clients</th>
                   <th className="table-header text-center rounded-tr-lg">Actions</th>
                 </tr>
@@ -187,6 +207,9 @@ export default function ConsultantManagement() {
                   <tr key={c.id} className="table-row">
                     <td className="table-cell font-medium">{c.name}</td>
                     <td className="table-cell text-brand-gray text-sm">{c.email}</td>
+                    <td className="table-cell text-brand-gray text-sm">
+                      {c.phone || <span className="text-brand-gray/50 italic">Not set</span>}
+                    </td>
                     <td className="table-cell text-center">
                       <span className={clsx(
                         'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold',
@@ -197,6 +220,13 @@ export default function ConsultantManagement() {
                     </td>
                     <td className="table-cell text-center">
                       <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => openEditPhone(c)}
+                          className="text-xs px-2.5 py-1.5 rounded-lg bg-brand-gray/10 text-brand-gray hover:bg-brand-gray/20 flex items-center gap-1 transition-colors"
+                          title="Edit phone number"
+                        >
+                          <Pencil size={12} /> Phone
+                        </button>
                         <button
                           onClick={() => openTransfer(c)}
                           className="text-xs px-2.5 py-1.5 rounded-lg bg-brand-yellow/10 text-brand-yellow hover:bg-brand-yellow/20 flex items-center gap-1 transition-colors"
@@ -296,6 +326,39 @@ export default function ConsultantManagement() {
               </div>
             </div>
           )}
+        </Modal>
+      )}
+
+      {/* ══════════ EDIT PHONE MODAL ══════════ */}
+      {editTarget && (
+        <Modal title={`Edit Phone — ${editTarget.name}`} onClose={() => setEditTarget(null)}>
+          <div className="space-y-4">
+            <Field label="Phone Number">
+              <div className="relative">
+                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray pointer-events-none" />
+                <input
+                  className="input-field pl-8"
+                  value={editPhone}
+                  onChange={e => setEditPhone(e.target.value)}
+                  placeholder="Phone number"
+                  autoFocus
+                />
+              </div>
+              <p className="text-xs text-brand-gray mt-1">Used to send SMS notifications to this consultant.</p>
+            </Field>
+            <div className="flex gap-3 justify-end pt-2">
+              <button onClick={() => setEditTarget(null)} className="btn-secondary">Cancel</button>
+              <button
+                onClick={() => editPhoneMutation.mutate({ id: editTarget.id, phone: editPhone.trim() })}
+                disabled={editPhoneMutation.isPending}
+                className="btn-primary"
+              >
+                {editPhoneMutation.isPending
+                  ? <><span className="w-4 h-4 border-2 border-brand-black border-t-transparent rounded-full animate-spin" /> Saving…</>
+                  : <><Pencil size={14} /> Save Phone</>}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
 

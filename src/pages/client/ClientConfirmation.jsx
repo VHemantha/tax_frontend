@@ -318,6 +318,10 @@ export default function ClientConfirmation() {
     const foreignTotal = num(s.foreign_income?.employment_service_fee) +
       num(s.foreign_income?.foreign_business_income) + num(s.foreign_income?.other_foreign_income)
     const selfAssessTotal = (s.self_assessment_payments || []).reduce((a, p) => a + num(p.amount), 0)
+    const soleWhtTotal = (s.sole_proprietorships || []).reduce((a, sp) => a + num(sp.wht_deducted), 0)
+    const otherWhtCertsTotal = (s.wht_certificates || [])
+      .filter(c => c.category !== 'rent' && c.category !== 'interest')
+      .reduce((a, c) => a + num(c.amount), 0)
 
     // Cash-flow pre-computed totals
     const cf = s.cash_flow
@@ -478,7 +482,9 @@ export default function ClientConfirmation() {
               <LineRow label="APIT on Salary"            value={s.tax_credits?.apit_on_salary} deduction />
               <LineRow label="WHT on Rent Income"        value={s.rent_income?.wht_deducted} deduction />
               <LineRow label="WHT on Interest Income"    value={s.interest_income?.wht_deducted} deduction />
-              <LineRow label="WHT Certificates"          value={s.tax_credits?.wht_rent_interest_service} deduction />
+              <LineRow label="WHT on Business Income"    value={soleWhtTotal} deduction />
+              <LineRow label="WHT on T-Bills / Securities" value={s.tb_securities?.wht_deducted} deduction />
+              <LineRow label="WHT Certificates (Service Fees / Other)" value={otherWhtCertsTotal} deduction />
               <LineRow label="Partnership Tax Credit"    value={s.tax_credits?.partnership_tax_credit} deduction />
               {selfAssessTotal > 0 && (
                 <div className="flex justify-between items-center py-1.5 border-b border-brand-gray-border/50 pl-3">
@@ -837,12 +843,20 @@ export default function ClientConfirmation() {
             <button onClick={downloadPdf} className="btn-primary flex items-center gap-2">
               <Download size={15} /> Download Tax Return PDF
             </button>
-            {submission?.status === 'archived' && documents.some(d => d.document_type === 'final_submission') && (
+            {submission?.status === 'archived' && documents.some(d => d.document_type === 'ird_return') && (
               <button
-                onClick={() => downloadDocument(documents.find(d => d.document_type === 'final_submission'))}
+                onClick={() => downloadDocument(documents.find(d => d.document_type === 'ird_return'))}
                 className="btn-primary flex items-center gap-2"
               >
-                <Download size={15} /> Download Final Return
+                <Download size={15} /> Download IRD Return
+              </button>
+            )}
+            {submission?.status === 'archived' && documents.some(d => d.document_type === 'ird_acknowledgement') && (
+              <button
+                onClick={() => downloadDocument(documents.find(d => d.document_type === 'ird_acknowledgement'))}
+                className="btn-primary flex items-center gap-2"
+              >
+                <Download size={15} /> Download IRD Acknowledgement
               </button>
             )}
           </div>

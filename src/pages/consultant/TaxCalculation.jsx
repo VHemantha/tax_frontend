@@ -390,6 +390,13 @@ const SECTION_FIELDS = {
       { key: 'wht_deducted', label: 'WHT Deducted on Interest Income (Rs.)', type: 'number' },
     ],
   },
+  tb_securities_wht: {
+    endpoint: id => `/tax/submissions/${id}/income/tb-securities/`,
+    label: 'WHT on T-Bills / Securities Income',
+    fields: [
+      { key: 'wht_deducted', label: 'WHT Deducted on T-Bills / Securities (Rs.)', type: 'number' },
+    ],
+  },
   qualifying_payments: {
     endpoint: id => `/tax/submissions/${id}/qualifying-payments/`,
     label: 'Qualifying Payments',
@@ -459,8 +466,8 @@ export default function TaxCalculation() {
   const [sectionSaving, setSectionSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'log'
   const [archiveModal, setArchiveModal] = useState(false)
-  const [archiveFile, setArchiveFile] = useState(null)
-  const [archiveDesc, setArchiveDesc] = useState('')
+  const [archiveIrdReturnFile, setArchiveIrdReturnFile] = useState(null)
+  const [archiveAcknowledgementFile, setArchiveAcknowledgementFile] = useState(null)
 
   const { data: submission, isLoading } = useQuery({
     queryKey: ['submission', submissionId],
@@ -512,8 +519,8 @@ export default function TaxCalculation() {
     onSuccess: () => {
       toast.success('Submission archived. Client has been notified.')
       setArchiveModal(false)
-      setArchiveFile(null)
-      setArchiveDesc('')
+      setArchiveIrdReturnFile(null)
+      setArchiveAcknowledgementFile(null)
       qc.invalidateQueries(['submission', submissionId])
       navigate(-1)
     },
@@ -522,13 +529,13 @@ export default function TaxCalculation() {
 
 
   function handleArchiveSubmit() {
-    if (!archiveFile) {
-      toast.error('Please select a document to upload before archiving.')
+    if (!archiveIrdReturnFile || !archiveAcknowledgementFile) {
+      toast.error('Please upload both the IRD return and the IRD acknowledgement before archiving.')
       return
     }
     const fd = new FormData()
-    fd.append('file', archiveFile)
-    if (archiveDesc.trim()) fd.append('description', archiveDesc.trim())
+    fd.append('ird_return', archiveIrdReturnFile)
+    fd.append('acknowledgement', archiveAcknowledgementFile)
     archiveSubmission.mutate(fd)
   }
 
@@ -657,12 +664,23 @@ export default function TaxCalculation() {
 
     // ── Tax credits ────────────────────────────────────────────────────────
     const apit        = parseFloat(sub.tax_credits?.apit_on_salary              || 0)
-    // Sum live cert amounts; fall back to synced field if array is empty (e.g. first load)
-    const whtFromCerts  = (sub.wht_certificates || []).reduce((acc, c) => acc + parseFloat(c.amount || 0), 0)
-    const whtCerts      = whtFromCerts > 0 ? whtFromCerts : parseFloat(sub.tax_credits?.wht_rent_interest_service || 0)
+    // WHT actually withheld at source — computed live from the income records so it
+    // always feeds the total, regardless of whether the Tax Credits form was saved.
+    const rentWht     = parseFloat(sub.rent_income?.wht_deducted || 0)
+    const interestWht = parseFloat(sub.interest_income?.wht_deducted || 0)
+    const soleWht      = (sub.sole_proprietorships || []).reduce((s, sp) => s + parseFloat(sp.wht_deducted || 0), 0)
+    const tbWht        = parseFloat(sub.tb_securities?.wht_deducted || 0)
+    const whtFromIncome = rentWht + interestWht + soleWht + tbWht
+    // WHT certificates for categories not covered above (service fees, employment,
+    // other). Rent/Interest certs are supporting evidence for whtFromIncome and are
+    // excluded here to avoid double-counting.
+    const whtCertsAllTotal = (sub.wht_certificates || []).reduce((acc, c) => acc + parseFloat(c.amount || 0), 0)
+    const whtFromCerts = (sub.wht_certificates || [])
+      .filter(c => c.category !== 'rent' && c.category !== 'interest')
+      .reduce((acc, c) => acc + parseFloat(c.amount || 0), 0)
     const partnership = parseFloat(sub.tax_credits?.partnership_tax_credit      || 0)
     const selfAssess  = (sub.self_assessment_payments || []).reduce((acc, p) => acc + parseFloat(p.amount || 0), 0)
-    const credits = apit + whtCerts + partnership + selfAssess
+    const credits = apit + whtFromIncome + whtFromCerts + partnership + selfAssess
 
     // ── Foreign income tax — progressive slabs capped at 15% ──────────────
     const foreignTaxPaid = parseFloat(fi.foreign_tax_paid || 0)
@@ -685,7 +703,9 @@ export default function TaxCalculation() {
       foreign_slab_breakdown,
       taxable_foreign:           taxableForeign,
       foreign_tax_gross:         computedForeignGross,
-      wht_cert_total:            whtCerts,
+      wht_from_income:           whtFromIncome,
+      wht_cert_total:            whtFromCerts,
+      wht_cert_all_total:        whtCertsAllTotal,
       self_assess_total:         selfAssess,
       total_tax_credits:         credits,
       foreign_income_tax:        foreignTax,
@@ -1130,10 +1150,11 @@ export default function TaxCalculation() {
                   const rentWHT = parseFloat(s?.rent_income?.wht_deducted || 0)
                   const intWHT  = parseFloat(s?.interest_income?.wht_deducted || 0)
                   const spWHT   = (s?.sole_proprietorships || []).reduce((sum, sp) => sum + parseFloat(sp.wht_deducted || 0), 0)
-                  const hasWHT  = rentWHT > 0 || intWHT > 0 || spWHT > 0
+                  const tbWHT   = parseFloat(s?.tb_securities?.wht_deducted || 0)
+                  const hasWHT  = rentWHT > 0 || intWHT > 0 || spWHT > 0 || tbWHT > 0
                   return (hasWHT || canEdit) ? (
                     <>
-                      <SubHeading>WHT Deducted at Source</SubHeading>
+                      <SubHeading>WHT Deducted at Source (included in Total Tax Credits)</SubHeading>
                       {(rentWHT > 0 || canEdit) && (
                         <div>
                           <AmountRow label="WHT on Rent Income" value={s?.rent_income?.wht_deducted} sub />
@@ -1157,6 +1178,17 @@ export default function TaxCalculation() {
                         </div>
                       )}
                       {spWHT > 0 && <AmountRow label="WHT on Business Income (see Sole Prop. above)" value={spWHT} sub />}
+                      {(tbWHT > 0 || canEdit) && (
+                        <div>
+                          <AmountRow label="WHT on T-Bills / Securities Income" value={s?.tb_securities?.wht_deducted} sub />
+                          {canEdit && (editingSection === 'tb_securities_wht' ? (
+                            <SectionEditForm fields={SECTION_FIELDS.tb_securities_wht.fields} data={s?.tb_securities || {}}
+                              onSave={d => saveSection('tb_securities_wht', d)} onCancel={() => setEditingSection(null)} saving={sectionSaving} />
+                          ) : (
+                            <button onClick={() => setEditingSection('tb_securities_wht')} className="btn-ghost text-xs mt-1 ml-4"><Pencil size={11} /> Edit WHT</button>
+                          ))}
+                        </div>
+                      )}
                     </>
                   ) : null
                 })()}
@@ -1164,7 +1196,7 @@ export default function TaxCalculation() {
                 {/* ── WHT Certificates ── */}
                 {((s?.wht_certificates || []).length > 0 || canEdit) && (
                   <>
-                    <SubHeading>WHT Credits by Income Category</SubHeading>
+                    <SubHeading>WHT Credits by Income Category (Rent/Interest shown for reference only — already counted above)</SubHeading>
                     <EditableDataTable
                       columns={[
                         { key: 'category', label: 'Category', displayKey: 'category_display',
@@ -1187,8 +1219,14 @@ export default function TaxCalculation() {
                     />
                     {(s?.wht_certificates || []).length > 0 && (
                       <div className="flex justify-between items-center px-2 py-1 bg-brand-black rounded-lg mt-1">
-                        <span className="text-xs font-semibold text-white">Total WHT</span>
-                        <span className="font-mono text-xs font-semibold text-white">{formatCurrency(derivedCalc.wht_cert_total)}</span>
+                        <span className="text-xs font-semibold text-white">Total (all certificates)</span>
+                        <span className="font-mono text-xs font-semibold text-white">{formatCurrency(derivedCalc.wht_cert_all_total)}</span>
+                      </div>
+                    )}
+                    {derivedCalc.wht_cert_total > 0 && (
+                      <div className="flex justify-between items-center px-2 py-1 rounded-lg mt-1">
+                        <span className="text-xs text-brand-gray">Counted toward Total Tax Credits (Service Fees / Employment / Other)</span>
+                        <span className="font-mono text-xs text-brand-gray">{formatCurrency(derivedCalc.wht_cert_total)}</span>
                       </div>
                     )}
                   </>
@@ -1612,9 +1650,33 @@ export default function TaxCalculation() {
                   <span className="text-xs font-mono text-white">({formatCurrency(s.tax_credits.apit_on_salary)})</span>
                 </div>
               )}
+              {parseFloat(s?.rent_income?.wht_deducted || 0) > 0 && (
+                <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
+                  <span className="text-xs text-brand-gray">WHT on Rent Income</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency(s.rent_income.wht_deducted)})</span>
+                </div>
+              )}
+              {parseFloat(s?.interest_income?.wht_deducted || 0) > 0 && (
+                <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
+                  <span className="text-xs text-brand-gray">WHT on Interest Income</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency(s.interest_income.wht_deducted)})</span>
+                </div>
+              )}
+              {(s?.sole_proprietorships || []).reduce((sum, sp) => sum + parseFloat(sp.wht_deducted || 0), 0) > 0 && (
+                <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
+                  <span className="text-xs text-brand-gray">WHT on Business Income</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency((s?.sole_proprietorships || []).reduce((sum, sp) => sum + parseFloat(sp.wht_deducted || 0), 0))})</span>
+                </div>
+              )}
+              {parseFloat(s?.tb_securities?.wht_deducted || 0) > 0 && (
+                <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
+                  <span className="text-xs text-brand-gray">WHT on T-Bills / Securities</span>
+                  <span className="text-xs font-mono text-white">({formatCurrency(s.tb_securities.wht_deducted)})</span>
+                </div>
+              )}
               {derivedCalc.wht_cert_total > 0 && (
                 <div className="flex justify-between items-center py-1.5 pl-4 border-b border-brand-gray-border/60">
-                  <span className="text-xs text-brand-gray">WHT on Rent / Interest / Service</span>
+                  <span className="text-xs text-brand-gray">WHT Certificates (Service Fees / Employment / Other)</span>
                   <span className="text-xs font-mono text-white">({formatCurrency(derivedCalc.wht_cert_total)})</span>
                 </div>
               )}
@@ -1731,23 +1793,23 @@ export default function TaxCalculation() {
 
             <div className="px-6 py-5 space-y-4">
               <p className="text-sm text-brand-gray">
-                Upload the final tax submission document before archiving. This document will be stored in the client's archive folder.
+                Upload the IRD return and the IRD acknowledgement before archiving. Both documents will be stored in the client's archive folder.
               </p>
 
               <div>
-                <label className="input-label">Final Document <span className="text-brand-red">*</span></label>
-                <label className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors ${archiveFile ? 'border-brand-success/60 bg-brand-success/5' : 'border-brand-gray-border hover:border-brand-yellow/50'}`}>
+                <label className="input-label">IRD Return <span className="text-brand-red">*</span></label>
+                <label className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors ${archiveIrdReturnFile ? 'border-brand-success/60 bg-brand-success/5' : 'border-brand-gray-border hover:border-brand-yellow/50'}`}>
                   <input
                     type="file"
                     className="hidden"
                     accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                    onChange={e => setArchiveFile(e.target.files[0] || null)}
+                    onChange={e => setArchiveIrdReturnFile(e.target.files[0] || null)}
                   />
-                  {archiveFile ? (
+                  {archiveIrdReturnFile ? (
                     <>
                       <CheckCircle size={24} className="text-brand-success" />
-                      <p className="text-sm font-medium text-white text-center">{archiveFile.name}</p>
-                      <p className="text-xs text-brand-gray">{(archiveFile.size / 1024).toFixed(1)} KB · Click to change</p>
+                      <p className="text-sm font-medium text-white text-center">{archiveIrdReturnFile.name}</p>
+                      <p className="text-xs text-brand-gray">{(archiveIrdReturnFile.size / 1024).toFixed(1)} KB · Click to change</p>
                     </>
                   ) : (
                     <>
@@ -1760,14 +1822,28 @@ export default function TaxCalculation() {
               </div>
 
               <div>
-                <label className="input-label">Description <span className="text-brand-gray text-xs">(optional)</span></label>
-                <input
-                  type="text"
-                  value={archiveDesc}
-                  onChange={e => setArchiveDesc(e.target.value)}
-                  placeholder="e.g. Final IRD submission copy"
-                  className="input-field text-sm"
-                />
+                <label className="input-label">IRD Acknowledgement <span className="text-brand-red">*</span></label>
+                <label className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors ${archiveAcknowledgementFile ? 'border-brand-success/60 bg-brand-success/5' : 'border-brand-gray-border hover:border-brand-yellow/50'}`}>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    onChange={e => setArchiveAcknowledgementFile(e.target.files[0] || null)}
+                  />
+                  {archiveAcknowledgementFile ? (
+                    <>
+                      <CheckCircle size={24} className="text-brand-success" />
+                      <p className="text-sm font-medium text-white text-center">{archiveAcknowledgementFile.name}</p>
+                      <p className="text-xs text-brand-gray">{(archiveAcknowledgementFile.size / 1024).toFixed(1)} KB · Click to change</p>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={24} className="text-brand-gray" />
+                      <p className="text-sm text-brand-gray">Click to select file</p>
+                      <p className="text-xs text-brand-gray">PDF, DOC, DOCX, JPG, PNG</p>
+                    </>
+                  )}
+                </label>
               </div>
             </div>
 
@@ -1775,7 +1851,7 @@ export default function TaxCalculation() {
               <button onClick={() => setArchiveModal(false)} className="btn-secondary">Cancel</button>
               <button
                 onClick={handleArchiveSubmit}
-                disabled={!archiveFile || archiveSubmission.isPending}
+                disabled={!archiveIrdReturnFile || !archiveAcknowledgementFile || archiveSubmission.isPending}
                 className="btn-primary bg-brand-success border-brand-success hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {archiveSubmission.isPending
